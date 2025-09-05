@@ -1783,8 +1783,6 @@ class SimpleCRM {
     }
 
     saveEdit() {
-        if (this.currentEditIndex === -1) return;
-        
         const generalForm = document.getElementById('editForm');
         const venueForm = document.getElementById('venueForm');
         const bookingForm = document.getElementById('bookingForm');
@@ -1796,27 +1794,55 @@ class SimpleCRM {
             ...contactForm.querySelectorAll('input, textarea, select')
         ];
         
-        // Store original venue data for change tracking
-        const venue = this.filteredVenues[this.currentEditIndex];
-        const originalVenue = { ...venue };
+        let venue;
+        let originalVenue;
+        let isNewVenue = false;
         
-        // Update the venue data
-        allInputs.forEach(input => {
-            venue[input.dataset.field] = input.value;
-        });
-        
-        // Check for changes and add to history
-        const changes = this.getChangesDescription(originalVenue, venue);
-        if (changes && changes.length > 0) {
-            // Update Last Updated timestamp when venue is modified
-            venue['Last Updated'] = new Date().toISOString();
-            this.addHistoryEntry('Edit', venue, changes);
-        }
-        
-        // Update the main venues array
-        const originalIndex = this.venues.findIndex(v => v === venue);
-        if (originalIndex !== -1) {
-            this.venues[originalIndex] = { ...venue };
+        if (this.currentEditIndex === -1) {
+            // This is a new venue being added
+            isNewVenue = true;
+            venue = this.tempNewVenue;
+            originalVenue = { ...venue };
+            
+            // Update the venue data with form values
+            allInputs.forEach(input => {
+                venue[input.dataset.field] = input.value;
+            });
+            
+            // Add the new venue to the arrays
+            this.venues.push(venue);
+            this.filteredVenues = [...this.venues];
+            
+            // Add to history
+            this.addHistoryEntry('Add', venue);
+            
+            // Go to the last page to show the new row
+            this.calculatePagination();
+            this.currentPage = this.totalPages;
+            
+        } else {
+            // This is an existing venue being edited
+            venue = this.filteredVenues[this.currentEditIndex];
+            originalVenue = { ...venue };
+            
+            // Update the venue data
+            allInputs.forEach(input => {
+                venue[input.dataset.field] = input.value;
+            });
+            
+            // Check for changes and add to history
+            const changes = this.getChangesDescription(originalVenue, venue);
+            if (changes && changes.length > 0) {
+                // Update Last Updated timestamp when venue is modified
+                venue['Last Updated'] = new Date().toISOString();
+                this.addHistoryEntry('Edit', venue, changes);
+            }
+            
+            // Update the main venues array
+            const originalIndex = this.venues.findIndex(v => v === venue);
+            if (originalIndex !== -1) {
+                this.venues[originalIndex] = { ...venue };
+            }
         }
         
         // Re-sort if currently sorting by Last Updated
@@ -1836,15 +1862,19 @@ class SimpleCRM {
                 if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
                 return 0;
             });
-        this.updateTable();
+            this.updateTable();
         } else {
             this.updateTable();
         }
         
+        this.updateFilterButtonTexts();
         this.updateKanbanBoard(); // Update kanban board
         this.updateMap(); // Update map after editing
         this.saveToLocalStorage();
         this.closeModal();
+        
+        // Clear the temporary new venue
+        this.tempNewVenue = null;
     }
 
     deleteRow(index) {
@@ -1869,6 +1899,7 @@ class SimpleCRM {
     }
 
     addNewRow() {
+        // Create a temporary new venue object for editing
         const newVenue = {};
         this.headers.forEach(header => {
             newVenue[header] = '';
@@ -1877,23 +1908,19 @@ class SimpleCRM {
         // Set Last Updated timestamp for new venue
         newVenue['Last Updated'] = new Date().toISOString();
         
-        this.venues.push(newVenue);
-        this.filteredVenues = [...this.venues];
+        // Set currentEditIndex to -1 to indicate this is a new venue
+        this.currentEditIndex = -1;
+        this.tempNewVenue = newVenue;
         
-        // Add to history
-        this.addHistoryEntry('Add', newVenue);
+        // Populate the edit modal with the new venue data
+        this.populateGeneralForm(newVenue);
+        this.populateVenueForm(newVenue);
+        this.populateBookingForm(newVenue);
+        this.populateContactForm(newVenue);
+        this.populateVenueHistory(newVenue);
         
-        // Go to the last page to show the new row
-        this.calculatePagination();
-        this.currentPage = this.totalPages;
-        
-        this.updateTable();
-        this.updateFilterButtonTexts();
-        this.updateKanbanBoard(); // Update kanban board
-        this.saveToLocalStorage();
-        
-        // Edit the new row
-        this.editRow(this.venues.length - 1);
+        // Open the edit modal
+        this.openModal();
     }
 
     clearAllData() {
@@ -1935,6 +1962,7 @@ class SimpleCRM {
     closeModal() {
         document.getElementById('editModal').style.display = 'none';
         this.currentEditIndex = -1;
+        this.tempNewVenue = null; // Clear temporary new venue if user cancels
     }
 
     openImportModal() {
