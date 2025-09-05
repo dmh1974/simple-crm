@@ -353,6 +353,11 @@ class SimpleCRM {
                                                 <button class="popup-delete-btn" data-venue-index="${globalIndex}" title="Delete">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
+                                                ${(!venue.Status || venue.Status.trim() === '') ? `
+                                                <button class="popup-kanban-btn" data-venue-index="${globalIndex}" title="Add to Kanban (CANVAS)">
+                                                    <i class="fas fa-tasks"></i>
+                                                </button>
+                                                ` : ''}
                                             </div>
                                         </li>
                                     `;
@@ -1227,6 +1232,22 @@ class SimpleCRM {
                 if (venueIndex >= 0 && venueIndex < this.venues.length) {
                     const venue = this.venues[venueIndex];
                     this.copyVenue(venue);
+                    // Close the popup
+                    popup.remove();
+                }
+            });
+        });
+
+        // Add event listeners for kanban buttons
+        const kanbanButtons = popup.getElement().querySelectorAll('.popup-kanban-btn');
+        kanbanButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const venueIndex = parseInt(button.dataset.venueIndex);
+                if (venueIndex >= 0 && venueIndex < this.venues.length) {
+                    const venue = this.venues[venueIndex];
+                    this.addToKanban(venue, venueIndex);
                     // Close the popup
                     popup.remove();
                 }
