@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple CRM</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="geo.js"></script>
+</head>
+<body>
+    <div class="container">
+
+        <div class="kanban-section">
+            <div class="kanban-board">
+                <div class="kanban-column">
+                    <div class="kanban-header">
+                        <h4>Canvas</h4>
+                        <span class="venue-count" id="canvasCount">0</span>
+                    </div>
+                    <div class="kanban-content" id="canvasContent">
+                        <!-- Venues will be populated dynamically -->
+                    </div>
+                </div>
+                
+                <div class="kanban-column">
+                    <div class="kanban-header">
+                        <h4>Follow-Up</h4>
+                        <span class="venue-count" id="followUpCount">0</span>
+                    </div>
+                    <div class="kanban-content" id="followUpContent">
+                        <!-- Venues will be populated dynamically -->
+                    </div>
+                </div>
+                
+                <div class="kanban-column">
+                    <div class="kanban-header">
+                        <h4>Booked</h4>
+                        <span class="venue-count" id="bookedCount">0</span>
+                    </div>
+                    <div class="kanban-content" id="bookedContent">
+                        <!-- Venues will be populated dynamically -->
+                    </div>
+                </div>
+                
+                <div class="kanban-column">
+                    <div class="kanban-header">
+                        <h4>Book Again</h4>
+                        <span class="venue-count" id="bookAgainCount">0</span>
+                    </div>
+                    <div class="kanban-content" id="bookAgainContent">
+                        <!-- Venues will be populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="history-section">
+            <div class="table-header">
+                <div class="table-title-section">
+                    <h3>History</h3>
+                    <button id="clearHistoryBtn" class="btn btn-small btn-danger">Clear History</button>
+                </div>
+                <div class="table-controls">
+                    <input type="text" id="historySearchFilter" placeholder="Search history entries..." class="history-search-input">
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>Actions</th>
+                            <th>Timestamp</th>
+                            <th>Action</th>
+                            <th>Venue</th>
+                            <th>Location</th>
+                            <th>Changes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <!-- History entries will be populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="map-section">
+            <div class="map-controls">
+                <label for="minVenueFilter">Min venues:</label>
+                <input type="number" id="minVenueFilter" min="1" value="1" title="Show only locations with this many venues or more">
+                <button id="resetLocationBtn" class="btn btn-small btn-secondary" title="Reset map to default location and zoom">
+                    <i class="fas fa-home"></i>
+                    Reset Location
+                </button>
+                <div class="location-search-container">
+                    <input type="text" id="locationSearch" placeholder="Type city, state..." autocomplete="off">
+                    <div id="locationSearchResults" class="location-search-results"></div>
+                </div>
+            </div>
+            <div id="venueMap"></div>
+        </div>
+
+        <div class="table-section">
+            <div class="table-header">
+                <div class="table-title-section">
+                    <h3>Venue Data</h3>
+                    <button id="importDataBtn" class="btn btn-primary btn-small">
+                        <i class="fas fa-upload"></i>
+                        Import/Export
+                    </button>
+                </div>
+                <div class="table-controls">
+                    <button id="addRowBtn" class="btn btn-small">Add Row</button>
+                    <button id="toggleColumnsBtn" class="btn btn-small btn-secondary">Toggle Columns</button>
+                    <button id="resetLayoutBtn" class="btn btn-small btn-secondary">Reset Layout</button>
+                    <button id="clearDataBtn" class="btn btn-small btn-danger">Clear All</button>
+                </div>
+            </div>
+            
+            <div class="filters-section">
+                <div class="filter-controls">
+                    <button id="statusFilterBtn" class="filter-btn">
+                        <span id="statusFilterText">All Statuses</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <button id="regionFilterBtn" class="filter-btn">
+                        <span id="regionFilterText">All Regions</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <button id="typeFilterBtn" class="filter-btn">
+                        <span id="typeFilterText">All Types</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <input type="text" id="searchFilter" placeholder="Search venues, cities, contacts...">
+                    <button id="clearAllFiltersBtn" class="btn btn-small btn-secondary">
+                        Clear All Filters
+                    </button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="venueTable">
+                    <thead>
+                        <tr id="headerRow">
+                            <!-- Headers will be populated dynamically -->
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Data will be populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="modal" id="editModal">
+            <div class="modal-content edit-modal-content">
+                <span class="close">&times;</span>
+                <h3>Edit Venue</h3>
+                
+                <div class="edit-venue-tabs">
+                    <button class="edit-tab-btn active" data-tab="general">General Info</button>
+                    <button class="edit-tab-btn" data-tab="venue">Venue</button>
+                    <button class="edit-tab-btn" data-tab="booking">Booking</button>
+                    <button class="edit-tab-btn" data-tab="contact">Contact Details</button>
+                    <button class="edit-tab-btn" data-tab="history">History</button>
+                </div>
+                
+                <div class="edit-tab-content active" id="generalTab">
+                    <form id="editForm">
+                        <!-- General form fields will be populated dynamically -->
+                    </form>
+                </div>
+                
+                <div class="edit-tab-content" id="venueTab">
+                    <form id="venueForm">
+                        <!-- Venue form fields will be populated dynamically -->
+                    </form>
+                </div>
+                
+                <div class="edit-tab-content" id="bookingTab">
+                    <form id="bookingForm">
+                        <!-- Booking form fields will be populated dynamically -->
+                    </form>
+                </div>
+                
+                <div class="edit-tab-content" id="contactTab">
+                    <form id="contactForm">
+                        <!-- Contact form fields will be populated dynamically -->
+                    </form>
+                </div>
+                
+                <div class="edit-tab-content" id="historyTab">
+                    <div class="venue-history-container">
+                        <div id="venueHistoryList" class="venue-history-list">
+                            <!-- History records will be populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" id="saveBtn">Save</button>
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="importModal">
+            <div class="modal-content import-modal-content">
+                <span class="close">&times;</span>
+                <h3>Import/Export Data</h3>
+                <div class="import-export-tabs">
+                    <button class="tab-btn active" data-tab="import">Import Data</button>
+                    <button class="tab-btn" data-tab="export">Export Data</button>
+                </div>
+                
+                <div class="tab-content active" id="importTab">
+                    <div class="import-instructions">
+                        <h4>How to Import:</h4>
+                        <ol>
+                            <li><strong>Option 1:</strong> Upload a .tsv file using the file picker below</li>
+                            <li><strong>Option 2:</strong> Copy your spreadsheet data (including headers) and paste it into the text area</li>
+                            <li>Click "Import Data" to add to your existing data</li>
+                        </ol>
+                    </div>
+                    <div class="import-controls">
+                        <div class="file-upload-section">
+                            <label for="fileUpload" class="file-upload-label">
+                                <i class="fas fa-upload"></i>
+                                Choose .tsv file to upload
+                            </label>
+                            <input type="file" id="fileUpload" accept=".tsv,.txt" style="display: none;">
+                            <span id="fileName" class="file-name"></span>
+                        </div>
+                        <div class="import-divider">
+                            <span>OR</span>
+                        </div>
+                        <textarea id="spreadsheetData" placeholder="Paste your spreadsheet data here (tab-separated values)&#10;First row should contain column headers"></textarea>
+                        <button id="importBtn" class="btn btn-primary">Import Data</button>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="exportTab">
+                    <div class="export-info">
+                        <h4>Export Options:</h4>
+                        <p>Export your current venue data in tab-separated format for use in Excel, Google Sheets, or other applications.</p>
+                        <div class="export-controls">
+                            <button id="exportBtn" class="btn btn-primary">Export Data</button>
+                            <p class="export-note">Data will be downloaded as a .tsv file</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Modals -->
+        <div class="modal filter-modal" id="statusFilterModal">
+            <div class="modal-content filter-modal-content">
+                <span class="close">&times;</span>
+                <h3>Filter by Status</h3>
+                <div class="filter-options">
+                    <div class="filter-header">
+                        <label class="select-all-label">
+                            <input type="checkbox" id="statusSelectAll">
+                            <span>Select All</span>
+                        </label>
+                        <button id="statusClearAll" class="btn btn-small btn-secondary">Clear All</button>
+                    </div>
+                    <div id="statusCheckboxes" class="filter-checkboxes">
+                        <!-- Checkboxes will be populated dynamically -->
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" id="statusApplyBtn">Apply Filters</button>
+                    <button type="button" class="btn btn-secondary" id="statusCancelBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal filter-modal" id="regionFilterModal">
+            <div class="modal-content filter-modal-content">
+                <span class="close">&times;</span>
+                <h3>Filter by Region</h3>
+                <div class="filter-options">
+                    <div class="filter-header">
+                        <label class="select-all-label">
+                            <input type="checkbox" id="regionSelectAll">
+                            <span>Select All</span>
+                        </label>
+                        <button id="regionClearAll" class="btn btn-small btn-secondary">Clear All</button>
+                    </div>
+                    <div id="regionCheckboxes" class="filter-checkboxes">
+                        <!-- Checkboxes will be populated dynamically -->
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" id="regionApplyBtn">Apply Filters</button>
+                    <button type="button" class="btn btn-secondary" id="regionCancelBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal filter-modal" id="typeFilterModal">
+            <div class="modal-content filter-modal-content">
+                <span class="close">&times;</span>
+                <h3>Filter by Type</h3>
+                <div class="filter-options">
+                    <div class="filter-header">
+                        <label class="select-all-label">
+                            <input type="checkbox" id="typeSelectAll">
+                            <span>Select All</span>
+                        </label>
+                        <button id="typeClearAll" class="btn btn-small btn-secondary">Clear All</button>
+                    </div>
+                    <div id="typeCheckboxes" class="filter-checkboxes">
+                        <!-- Checkboxes will be populated dynamically -->
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" id="typeApplyBtn">Apply Filters</button>
+                    <button type="button" class="btn btn-secondary" id="typeCancelBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
