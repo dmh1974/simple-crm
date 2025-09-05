@@ -748,6 +748,14 @@ header p {
     background: #138496;
 }
 
+.copy-action {
+    background: #17a2b8;
+}
+
+.copy-action:hover {
+    background: #138496;
+}
+
 .delete-action {
     background: #dc3545;
 }
@@ -861,6 +869,15 @@ header p {
 }
 
 .popup-edit-btn:hover {
+    background: #138496;
+    transform: scale(1.1);
+}
+
+.popup-copy-btn {
+    background: #17a2b8;
+}
+
+.popup-copy-btn:hover {
     background: #138496;
     transform: scale(1.1);
 }
@@ -1046,6 +1063,17 @@ td {
 }
 
 .edit-btn:hover {
+    background: #138496;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+}
+
+.copy-btn {
+    background: #17a2b8;
+    color: white;
+}
+
+.copy-btn:hover {
     background: #138496;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);

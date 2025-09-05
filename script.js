@@ -347,6 +347,9 @@ class SimpleCRM {
                                                 <button class="popup-edit-btn" data-venue-index="${globalIndex}" title="Edit">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
+                                                <button class="popup-copy-btn" data-venue-index="${globalIndex}" title="Copy">
+                                                    <i class="fas fa-copy"></i>
+                                                </button>
                                                 <button class="popup-delete-btn" data-venue-index="${globalIndex}" title="Delete">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
@@ -994,6 +997,12 @@ class SimpleCRM {
             editBtn.title = 'Edit';
             editBtn.addEventListener('click', () => this.editRow(startIndex + index));
             
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'action-btn copy-btn';
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+            copyBtn.title = 'Copy';
+            copyBtn.addEventListener('click', () => this.copyVenue(venue));
+            
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'action-btn delete-btn';
             deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
@@ -1001,6 +1010,7 @@ class SimpleCRM {
             deleteBtn.addEventListener('click', () => this.deleteRow(startIndex + index));
             
             actionTd.appendChild(editBtn);
+            actionTd.appendChild(copyBtn);
             actionTd.appendChild(deleteBtn);
             row.appendChild(actionTd);
             
@@ -1191,6 +1201,22 @@ class SimpleCRM {
                             this.editRow(newFilteredIndex);
                         }
                     }
+                    // Close the popup
+                    popup.remove();
+                }
+            });
+        });
+
+        // Add event listeners for copy buttons
+        const copyButtons = popup.getElement().querySelectorAll('.popup-copy-btn');
+        copyButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const venueIndex = parseInt(button.dataset.venueIndex);
+                if (venueIndex >= 0 && venueIndex < this.venues.length) {
+                    const venue = this.venues[venueIndex];
+                    this.copyVenue(venue);
                     // Close the popup
                     popup.remove();
                 }
@@ -1923,6 +1949,33 @@ class SimpleCRM {
         this.openModal();
     }
 
+    copyVenue(venue) {
+        // Create a copy of the venue with (COPY) added to the name
+        const copiedVenue = { ...venue };
+        
+        // Add (COPY) to the venue name
+        if (copiedVenue.Venue) {
+            copiedVenue.Venue = copiedVenue.Venue + ' (COPY)';
+        }
+        
+        // Set Last Updated timestamp for the copied venue
+        copiedVenue['Last Updated'] = new Date().toISOString();
+        
+        // Set currentEditIndex to -1 to indicate this is a new venue
+        this.currentEditIndex = -1;
+        this.tempNewVenue = copiedVenue;
+        
+        // Populate the edit modal with the copied venue data
+        this.populateGeneralForm(copiedVenue);
+        this.populateVenueForm(copiedVenue);
+        this.populateBookingForm(copiedVenue);
+        this.populateContactForm(copiedVenue);
+        this.populateVenueHistory(copiedVenue);
+        
+        // Open the edit modal
+        this.openModal();
+    }
+
     clearAllData() {
         if (!confirm('Are you sure you want to clear all data? This cannot be undone!')) return;
         
@@ -2288,6 +2341,9 @@ class SimpleCRM {
                 <button class="venue-action-btn edit-action" title="Edit">
                     <i class="fas fa-edit"></i>
                 </button>
+                <button class="venue-action-btn copy-action" title="Copy">
+                    <i class="fas fa-copy"></i>
+                </button>
                 <button class="venue-action-btn delete-action" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -2299,12 +2355,18 @@ class SimpleCRM {
         
         // Add event listeners
         const editBtn = card.querySelector('.edit-action');
+        const copyBtn = card.querySelector('.copy-action');
         const deleteBtn = card.querySelector('.delete-action');
         const moveBtn = card.querySelector('.move-action');
         
         editBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.editKanbanVenue(venue);
+        });
+        
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.copyVenue(venue);
         });
         
         deleteBtn.addEventListener('click', (e) => {
