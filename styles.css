@@ -1079,6 +1079,17 @@ td {
     box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
 }
 
+.kanban-btn {
+    background: #28a745;
+    color: white;
+}
+
+.kanban-btn:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
 .delete-btn {
     background: #dc3545;
     color: white;

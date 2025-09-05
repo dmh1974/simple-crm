@@ -1012,6 +1012,16 @@ class SimpleCRM {
             actionTd.appendChild(editBtn);
             actionTd.appendChild(copyBtn);
             actionTd.appendChild(deleteBtn);
+            
+            // Add kanban move button only if status is empty
+            if (!venue.Status || venue.Status.trim() === '') {
+                const kanbanBtn = document.createElement('button');
+                kanbanBtn.className = 'action-btn kanban-btn';
+                kanbanBtn.innerHTML = '<i class="fas fa-tasks"></i>';
+                kanbanBtn.title = 'Add to Kanban (CANVAS)';
+                kanbanBtn.addEventListener('click', () => this.addToKanban(venue, startIndex + index));
+                actionTd.appendChild(kanbanBtn);
+            }
             row.appendChild(actionTd);
             
             // Add data columns
@@ -1850,11 +1860,11 @@ class SimpleCRM {
             // This is an existing venue being edited
             venue = this.filteredVenues[this.currentEditIndex];
             originalVenue = { ...venue };
-            
-            // Update the venue data
+        
+        // Update the venue data
             allInputs.forEach(input => {
-                venue[input.dataset.field] = input.value;
-            });
+            venue[input.dataset.field] = input.value;
+        });
             
             // Check for changes and add to history
             const changes = this.getChangesDescription(originalVenue, venue);
@@ -1863,11 +1873,11 @@ class SimpleCRM {
                 venue['Last Updated'] = new Date().toISOString();
                 this.addHistoryEntry('Edit', venue, changes);
             }
-            
-            // Update the main venues array
-            const originalIndex = this.venues.findIndex(v => v === venue);
-            if (originalIndex !== -1) {
-                this.venues[originalIndex] = { ...venue };
+        
+        // Update the main venues array
+        const originalIndex = this.venues.findIndex(v => v === venue);
+        if (originalIndex !== -1) {
+            this.venues[originalIndex] = { ...venue };
             }
         }
         
@@ -1888,7 +1898,7 @@ class SimpleCRM {
                 if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
                 return 0;
             });
-            this.updateTable();
+        this.updateTable();
         } else {
             this.updateTable();
         }
@@ -1974,6 +1984,56 @@ class SimpleCRM {
         
         // Open the edit modal
         this.openModal();
+    }
+
+    addToKanban(venue, index) {
+        // Set status to CANVAS (first kanban column)
+        venue.Status = 'CANVAS';
+        
+        // Update Last Updated timestamp
+        venue['Last Updated'] = new Date().toISOString();
+        
+        // Create changes description for history
+        const changes = [{
+            field: 'Status',
+            oldValue: '',
+            newValue: 'CANVAS'
+        }];
+        
+        // Add to history
+        this.addHistoryEntry('Edit', venue, changes);
+        
+        // Update the main venues array
+        const originalIndex = this.venues.findIndex(v => v === venue);
+        if (originalIndex !== -1) {
+            this.venues[originalIndex] = { ...venue };
+        }
+        
+        // Re-sort if currently sorting by Last Updated
+        if (this.sortColumn === 'Last Updated') {
+            // Preserve the current sort direction and re-sort
+            this.filteredVenues.sort((a, b) => {
+                let aVal = a['Last Updated'] || '';
+                let bVal = b['Last Updated'] || '';
+                
+                // Handle date comparison
+                if (aVal && bVal) {
+                    aVal = new Date(aVal);
+                    bVal = new Date(bVal);
+                }
+                
+                if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+        this.updateTable();
+        } else {
+            this.updateTable();
+        }
+        
+        this.updateKanbanBoard(); // Update kanban board
+        this.updateMap(); // Update map
+        this.saveToLocalStorage();
     }
 
     clearAllData() {
