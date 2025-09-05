@@ -327,6 +327,7 @@ header p {
     background-color: #2d2d2d !important;
     color: #e1e8ed !important;
     border: 1px solid #4a5568 !important;
+    max-width: 300px !important;
 }
 
 .leaflet-popup-tip {
@@ -2424,7 +2425,13 @@ td {
     
     /* Popup Venue List */
     .popup-venue-list {
-        max-height: 200px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .popup-venue-list.scrollable {
+        max-height: 300px;
+        overflow-y: auto;
     }
     
     .popup-venue-item {
@@ -2458,6 +2465,17 @@ td {
         width: 24px;
         height: 24px;
         font-size: 10px;
+    }
+    
+    /* Leaflet popup width control for mobile */
+    .leaflet-popup-content-wrapper {
+        max-width: 280px !important;
+        width: 280px !important;
+    }
+    
+    .leaflet-popup-content {
+        margin: 8px !important;
+        width: auto !important;
     }
 }
 
@@ -2568,5 +2586,47 @@ td {
     .page-numbers,
     .history-page-numbers {
         gap: 1px;
+    }
+    
+    /* Popup Venue List for Extra Small Devices */
+    .popup-venue-list {
+        max-height: 250px;
+        overflow-y: auto;
+    }
+    
+    .popup-venue-list.scrollable {
+        max-height: 250px;
+        overflow-y: auto;
+    }
+    
+    .popup-venue-item {
+        padding: 6px;
+        gap: 4px;
+    }
+    
+    .venue-name {
+        font-size: 11px;
+    }
+    
+    .venue-type {
+        font-size: 9px;
+    }
+    
+    .popup-edit-btn,
+    .popup-delete-btn {
+        width: 22px;
+        height: 22px;
+        font-size: 9px;
+    }
+    
+    /* Leaflet popup width control for extra small devices */
+    .leaflet-popup-content-wrapper {
+        max-width: 250px !important;
+        width: 250px !important;
+    }
+    
+    .leaflet-popup-content {
+        margin: 6px !important;
+        width: auto !important;
     }
 }
