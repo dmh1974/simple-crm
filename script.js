@@ -158,6 +158,12 @@ class SimpleCRM {
             });
         });
 
+        // Copy AI Prompt button
+        document.getElementById('copyAiPromptBtn').addEventListener('click', () => this.copyAiPrompt());
+
+        // Import Contact JSON button
+        document.getElementById('importContactJsonBtn').addEventListener('click', () => this.showImportContactJsonModal());
+
         // Import modal controls
         document.getElementById('importModal').addEventListener('click', (e) => {
             if (e.target.id === 'importModal') {
@@ -1050,6 +1056,13 @@ class SimpleCRM {
                     td.innerHTML = `<a href="mailto:${value}">${value}</a>`;
                 } else if (header === 'Phone' && value) {
                     td.innerHTML = `<a href="tel:${value}">${value}</a>`;
+                } else if (header === 'Website' && value) {
+                    // Ensure the URL has a protocol
+                    let url = value;
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                        url = 'https://' + url;
+                    }
+                    td.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer">${value}</a>`;
                 } else {
                     td.textContent = value;
                 }
@@ -1553,6 +1566,9 @@ class SimpleCRM {
                 // Get unique values for this field from all venues
                 const uniqueValues = [...new Set(this.venues.map(v => v[header]).filter(Boolean))];
                 
+                // Sort values alphabetically
+                uniqueValues.sort();
+                
                 // Add empty option
                 const emptyOption = document.createElement('option');
                 emptyOption.value = '';
@@ -1703,6 +1719,9 @@ class SimpleCRM {
                 // Get unique values for Genre from all venues
                 const uniqueValues = [...new Set(this.venues.map(v => v[header]).filter(Boolean))];
                 
+                // Sort values alphabetically
+                uniqueValues.sort();
+                
                 // Add empty option
                 const emptyOption = document.createElement('option');
                 emptyOption.value = '';
@@ -1758,6 +1777,9 @@ class SimpleCRM {
                 
                 // Get unique values for Status from all venues
                 const uniqueValues = [...new Set(this.venues.map(v => v[header]).filter(Boolean))];
+                
+                // Sort values alphabetically
+                uniqueValues.sort();
                 
                 // Add empty option
                 const emptyOption = document.createElement('option');
@@ -2007,6 +2029,184 @@ class SimpleCRM {
         this.openModal();
     }
 
+    copyAiPrompt() {
+        // Get the current venue being edited
+        let venue;
+        if (this.currentEditIndex === -1) {
+            // This is a new venue being added
+            venue = this.tempNewVenue;
+        } else {
+            // This is an existing venue being edited
+            venue = this.filteredVenues[this.currentEditIndex];
+        }
+        
+        if (!venue) {
+            alert('No venue data available to generate AI prompt.');
+            return;
+        }
+        
+        // Extract the required fields
+        const type = venue.Type || '';
+        const venueName = venue.Venue || '';
+        const city = venue.City || '';
+        const state = venue.State || '';
+        
+        // Generate the AI prompt string
+        const aiPrompt = `You are a CRM assistant. Find the most appropriate single contact for booking my solo singer-songwriter act for pay at ${venueName}, ${city}, ${state} (category: ${type}). Provide only the following information: Contact Name, Phone, E-Mail, Website. Respond strictly as a JSON object with these keys: "Contact", "Phone", "Email", "Website". ONLY a Pretty Printed JSON array in text box with opening and closing [ ].`;
+        
+        // Copy to clipboard
+        navigator.clipboard.writeText(aiPrompt).then(() => {
+            // Show success feedback
+            const button = document.getElementById('copyAiPromptBtn');
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            button.style.background = '#28a745';
+            
+            // Reset button after 2 seconds
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.style.background = '';
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy AI prompt: ', err);
+            alert('Failed to copy AI prompt to clipboard. Please try again.');
+        });
+    }
+
+    showImportContactJsonModal() {
+        // Create modal for JSON import
+        const modal = document.createElement('div');
+        modal.className = 'modal contact-json-modal';
+        modal.style.display = 'block';
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content contact-json-content';
+        
+        modalContent.innerHTML = `
+            <span class="close">&times;</span>
+            <h3>Import Contact JSON</h3>
+            <div class="import-instructions">
+                <p>Paste the JSON array containing contact information below:</p>
+                <div class="json-example">
+                    <strong>Example format:</strong>
+                    <pre>[
+  {
+    "Contact": "Charlotte LaFrance",
+    "Phone": "518.358.2222 ext 6005",
+    "Email": "charlotte.lafrance@mohawkcasino.com",
+    "Website": "https://www.mohawkcasino.com/"
+  }
+]</pre>
+                </div>
+            </div>
+            <textarea id="contactJsonInput" placeholder="Paste your JSON array here..." rows="8"></textarea>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-primary" id="importContactDataBtn">Import Contact Data</button>
+                <button type="button" class="btn btn-secondary" id="cancelContactImportBtn">Cancel</button>
+            </div>
+        `;
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        // Event listeners
+        modal.querySelector('.close').addEventListener('click', () => this.closeContactJsonModal(modal));
+        modal.querySelector('#cancelContactImportBtn').addEventListener('click', () => this.closeContactJsonModal(modal));
+        modal.querySelector('#importContactDataBtn').addEventListener('click', () => this.importContactJson(modal));
+        
+        // Close on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeContactJsonModal(modal);
+            }
+        });
+        
+        // Focus on textarea
+        setTimeout(() => {
+            document.getElementById('contactJsonInput').focus();
+        }, 100);
+    }
+
+    closeContactJsonModal(modal) {
+        modal.remove();
+    }
+
+    importContactJson(modal) {
+        const jsonInput = document.getElementById('contactJsonInput');
+        const jsonText = jsonInput.value.trim();
+        
+        if (!jsonText) {
+            alert('Please paste some JSON data first!');
+            return;
+        }
+        
+        try {
+            // Parse the JSON
+            const contactData = JSON.parse(jsonText);
+            
+            // Validate that it's an array
+            if (!Array.isArray(contactData)) {
+                alert('JSON must be an array. Please check your format.');
+                return;
+            }
+            
+            // Get the first contact object (assuming single contact)
+            const contact = contactData[0];
+            
+            if (!contact || typeof contact !== 'object') {
+                alert('No valid contact data found in the JSON array.');
+                return;
+            }
+            
+            // Validate required fields
+            if (!contact.Contact && !contact.Phone && !contact.Email && !contact.Website) {
+                alert('No contact information found. Please check that your JSON contains Contact, Phone, Email, or Website fields.');
+                return;
+            }
+            
+            // Import the data into the contact form fields
+            this.populateContactFieldsFromJson(contact);
+            
+            // Close the modal
+            this.closeContactJsonModal(modal);
+            
+            // Show success message
+            alert('Contact data imported successfully!');
+            
+        } catch (error) {
+            console.error('JSON parsing error:', error);
+            alert('Invalid JSON format. Please check your data and try again.');
+        }
+    }
+
+    populateContactFieldsFromJson(contactData) {
+        // Get both forms (General Info and Contact Details)
+        const generalForm = document.getElementById('editForm');
+        const contactForm = document.getElementById('contactForm');
+        
+        // Map JSON fields to form fields
+        const fieldMappings = {
+            'Contact': 'Contact',
+            'Phone': 'Phone', 
+            'Email': 'Email',
+            'Website': 'Website'
+        };
+        
+        // Update form fields with imported data
+        Object.entries(fieldMappings).forEach(([jsonKey, formField]) => {
+            if (contactData[jsonKey]) {
+                // Look for the field in both forms
+                let input = contactForm.querySelector(`input[data-field="${formField}"], textarea[data-field="${formField}"]`);
+                if (!input) {
+                    input = generalForm.querySelector(`input[data-field="${formField}"], textarea[data-field="${formField}"]`);
+                }
+                if (input) {
+                    input.value = contactData[jsonKey];
+                }
+            }
+        });
+    }
+
     addToKanban(venue, index) {
         // Set status to CANVAS (first kanban column)
         venue.Status = 'CANVAS';
@@ -2219,6 +2419,9 @@ class SimpleCRM {
                 currentFilters = this.typeFilters || [];
                 break;
         }
+
+        // Sort values alphabetically
+        values.sort();
 
         // Create checkbox for each value
         values.forEach(value => {
