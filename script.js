@@ -2054,23 +2054,26 @@ class SimpleCRM {
         // Generate the AI prompt string
         const aiPrompt = `You are a CRM assistant. Find the most appropriate single contact for booking my solo singer-songwriter act for pay at ${venueName}, ${city}, ${state} (category: ${type}). Provide only the following information: Contact Name, Phone, E-Mail, Website. Respond strictly as a JSON object with these keys: "Contact", "Phone", "Email", "Website". ONLY a Pretty Printed JSON array in text box with opening and closing [ ].`;
         
-        // Copy to clipboard
-        navigator.clipboard.writeText(aiPrompt).then(() => {
-            // Show success feedback
-            const button = document.getElementById('copyAiPromptBtn');
-            const originalText = button.innerHTML;
-            button.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            button.style.background = '#28a745';
-            
-            // Reset button after 2 seconds
-            setTimeout(() => {
-                button.innerHTML = originalText;
-                button.style.background = '';
-            }, 2000);
-        }).catch(err => {
-            console.error('Failed to copy AI prompt: ', err);
-            alert('Failed to copy AI prompt to clipboard. Please try again.');
-        });
+        // URL encode the prompt
+        const encodedPrompt = encodeURIComponent(aiPrompt);
+        
+        // Create ChatGPT URL with the encoded prompt
+        const chatGptUrl = `https://chatgpt.com/?q=${encodedPrompt}`;
+        
+        // Open ChatGPT in a new tab
+        window.open(chatGptUrl, '_blank', 'noopener,noreferrer');
+        
+        // Show success feedback
+        const button = document.getElementById('copyAiPromptBtn');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-external-link-alt"></i> Opened!';
+        button.style.background = '#28a745';
+        
+        // Reset button after 2 seconds
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.style.background = '';
+        }, 2000);
     }
 
     showImportContactJsonModal() {
