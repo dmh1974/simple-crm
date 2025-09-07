@@ -2058,7 +2058,7 @@ class SimpleCRM {
         const encodedPrompt = encodeURIComponent(aiPrompt);
         
         // Create ChatGPT URL with the encoded prompt
-        const chatGptUrl = `https://chatgpt.com/?q=${encodedPrompt}`;
+        const chatGptUrl = `https://chatgpt.com/?q=${encodedPrompt}&temporary-chat=true`;
         
         // Open ChatGPT in a new tab
         window.open(chatGptUrl, '_blank', 'noopener,noreferrer');
