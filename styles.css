@@ -11,6 +11,24 @@ body {
     background-color: #1a1a1a;
 }
 
+a {
+    color: #93b5ff;
+    text-decoration: none;
+}
+
+a:hover {
+    color: #b8d4ff;
+    text-decoration: underline;
+}
+
+a:visited {
+    color: #a78bfa;
+}
+
+a:visited:hover {
+    color: #c4b5fd;
+}
+
 .container {
     max-width: 1400px;
     margin: 0 auto;
@@ -176,16 +194,22 @@ header p {
 
 
 .map-section {
-    background: #2d2d2d;
-    padding: 20px;
     border-radius: 10px;
-    margin-bottom: 25px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
 }
 
-.map-section h3 {
-    margin-bottom: 20px;
+.map-section .section-header.collapsible-header h3 {
+    margin: 0;
     color: #e1e8ed;
+    text-align: left;
+}
+
+.map-section .section-content {
+    padding: 20px;
+    padding-top: 10px;
+}
+
+.map-section .section-content .map-controls {
+    margin-top: 0;
 }
 
 .map-controls {
@@ -401,47 +425,99 @@ header p {
     color: #667eea;
 }
 
-/* Kanban Board Styles */
-.kanban-section {
+/* Collapsible Section Styles */
+.collapsible-section {
+    margin-bottom: 25px;
+}
+
+.collapsible-section .section-header.collapsible-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 15px 20px;
+    background: #2d2d2d;
+    border-radius: 10px 10px 0 0;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s ease;
+    border: 1px solid rgba(74, 85, 104, 0.5);
+    border-bottom: none;
+}
+
+.collapsible-section .section-header.collapsible-header:hover {
+    background: #374151;
+}
+
+.collapsible-section .drag-handle {
+    cursor: grab;
+    color: #a0aec0;
+    padding: 4px 8px;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.collapsible-section .drag-handle:active {
+    cursor: grabbing;
+}
+
+.collapsible-section .drag-handle:hover {
+    color: #e1e8ed;
+}
+
+.collapsible-section.section-dragging {
+    opacity: 0.6;
+}
+
+.collapsible-section .section-header.collapsible-header.drag-over {
+    border-top: 3px solid #667eea;
+}
+
+.collapsible-section .section-content {
     background: #2d2d2d;
     padding: 20px;
-    border-radius: 10px;
-    margin-bottom: 25px;
+    border-radius: 0 0 10px 10px;
+    border: 1px solid rgba(74, 85, 104, 0.5);
+    border-top: none;
     box-shadow: 0 2px 10px rgba(0,0,0,0.2);
 }
 
-/* History Section Styles */
-.history-section {
-    background: #2d2d2d;
+.collapsible-section.collapsed .section-content {
+    display: none;
+}
+
+.collapsible-section.collapsed .section-header {
     border-radius: 10px;
+    border-bottom: 1px solid rgba(74, 85, 104, 0.5);
     box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    overflow: hidden;
-    margin-bottom: 25px;
 }
 
-.history-search-input {
-    padding: 8px 12px;
-    border: 1px solid #4a5568;
-    border-radius: 6px;
-    font-size: 14px;
-    background-color: #1a1a1a;
-    color: #e1e8ed;
-    min-width: 250px;
-}
-
-.history-search-input:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
-.history-search-input::placeholder {
+.collapsible-section .toggle-icon {
+    margin-left: auto;
+    transition: transform 0.25s ease;
     color: #a0aec0;
 }
 
+.collapsible-section.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+/* Kanban Board Styles */
+.kanban-section {
+    border-radius: 10px;
+}
+
+.kanban-section .section-header.collapsible-header {
+    border-radius: 10px 10px 0 0;
+}
+
+.kanban-section .section-content {
+    padding: 20px;
+}
+
 .kanban-section h3 {
-    margin-bottom: 20px;
+    margin: 0;
     color: #e1e8ed;
-    text-align: center;
+    text-align: left;
 }
 
 .kanban-board {
@@ -517,166 +593,6 @@ header p {
     scrollbar-color: #4a5568 #1a1a1a;
 }
 
-/* History Table Styles */
-.history-timestamp {
-    font-size: 12px;
-    color: #a0aec0;
-    white-space: nowrap;
-}
-
-.history-action {
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.history-action.add {
-    background-color: #d4edda;
-    color: #155724;
-}
-
-.history-action.edit {
-    background-color: #fff3cd;
-    color: #856404;
-}
-
-.history-action.delete {
-    background-color: #f8d7da;
-    color: #721c24;
-}
-
-.history-venue {
-    font-weight: 600;
-    color: #e1e8ed;
-}
-
-.history-location {
-    color: #a0aec0;
-    font-size: 13px;
-}
-
-.history-changes {
-    font-size: 12px;
-    line-height: 1.4;
-    white-space: normal;
-    word-wrap: break-word;
-    max-width: 300px;
-}
-
-.history-change-item {
-    margin-bottom: 4px;
-    padding: 2px 0;
-}
-
-.history-change-field {
-    font-weight: 600;
-    color: #e1e8ed;
-}
-
-.history-change-old {
-    color: #dc3545;
-    text-decoration: line-through;
-    margin: 0 4px;
-}
-
-.history-change-arrow {
-    color: #a0aec0;
-    margin: 0 4px;
-}
-
-.history-change-new {
-    color: #28a745;
-    font-weight: 500;
-}
-
-/* History Pagination Styles */
-.history-pagination-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 15px 20px;
-    border-top: 1px solid #4a5568;
-    background-color: #1a1a1a;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.history-pagination-info {
-    color: #a0aec0;
-    font-size: 13px;
-    font-weight: 500;
-}
-
-.history-pagination-nav {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-}
-
-.history-pagination-btn {
-    min-width: 32px;
-    height: 28px;
-    padding: 4px 8px;
-    border: 1px solid #4a5568;
-    background-color: #2d2d2d;
-    color: #e1e8ed;
-    font-weight: 500;
-    font-size: 12px;
-    transition: all 0.2s ease;
-    cursor: pointer;
-}
-
-.history-pagination-btn:hover:not(:disabled) {
-    background-color: #4a5568;
-    border-color: #667eea;
-    transform: translateY(-1px);
-}
-
-.history-pagination-btn.active {
-    background-color: #667eea;
-    border-color: #667eea;
-    color: white;
-}
-
-.history-pagination-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.history-page-numbers {
-    display: flex;
-    gap: 1px;
-}
-
-.history-page-size-selector {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.history-page-size-selector label {
-    font-size: 13px;
-    color: #e1e8ed;
-    font-weight: 500;
-}
-
-.history-page-size-selector select {
-    padding: 4px 8px;
-    border: 1px solid #4a5568;
-    border-radius: 4px;
-    font-size: 13px;
-    background-color: #1a1a1a;
-    color: #e1e8ed;
-    cursor: pointer;
-}
-
-.history-page-size-selector select:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
 .kanban-venue-card {
     background: #2d2d2d;
     border: 1px solid #4a5568;
@@ -699,6 +615,35 @@ header p {
     color: #e1e8ed;
     font-size: 14px;
     font-weight: 600;
+}
+
+.kanban-card-info {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 8px;
+    text-align: left;
+}
+
+.kanban-card-info .venue-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e1e8ed;
+    margin-bottom: 4px;
+}
+
+.kanban-card-info .venue-location {
+    font-size: 12px;
+    color: #a0aec0;
+    margin-bottom: 4px;
+}
+
+.kanban-card-info .venue-type,
+.kanban-card-info .venue-timeline,
+.kanban-card-info .venue-distance {
+    font-size: 11px;
+    color: #a0aec0;
+    font-style: italic;
+    margin-bottom: 2px;
 }
 
 .venue-location {
@@ -775,7 +720,8 @@ header p {
 /* Popup venue list container */
 .popup-venue-list {
     max-height: 250px;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     transition: all 0.3s ease;
 }
 
@@ -843,84 +789,61 @@ header p {
     font-style: italic;
 }
 
+.venue-timeline {
+    text-align: left;
+    font-size: 11px;
+    color: #a0aec0;
+    font-style: italic;
+}
+
+.venue-distance {
+    text-align: left;
+    font-size: 11px;
+    color: #a0aec0;
+    font-style: italic;
+}
+
 .popup-actions {
     display: flex;
     gap: 5px;
 }
 
-.popup-edit-btn,
-.popup-copy-btn,
-.popup-kanban-btn,
-.popup-delete-btn {
+/* Popup action buttons - same colors/hover as table action-btn, smaller for popup */
+.popup-actions .action-btn {
+    flex-shrink: 0;
     width: 24px;
     height: 24px;
-    padding: 0;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
     font-size: 11px;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-}
-
-.popup-edit-btn {
-    background: #17a2b8;
-}
-
-.popup-edit-btn:hover {
-    background: #138496;
-    transform: scale(1.1);
-}
-
-.popup-copy-btn {
-    background: #17a2b8;
-}
-
-.popup-copy-btn:hover {
-    background: #138496;
-    transform: scale(1.1);
-}
-
-.popup-kanban-btn {
-    background: #28a745;
-}
-
-.popup-kanban-btn:hover {
-    background: #218838;
-    transform: scale(1.1);
-}
-
-.popup-delete-btn {
-    background: #dc3545;
-}
-
-.popup-delete-btn:hover {
-    background: #c82333;
-    transform: scale(1.1);
+    border-radius: 4px;
 }
 
 .table-section {
-    background: #2d2d2d;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
     overflow: hidden;
+}
+
+.table-section .section-header.collapsible-header {
+    padding: 15px 20px;
+}
+
+.table-section .section-header .table-title-section {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.table-section .section-header h3 {
+    color: #e1e8ed;
+    margin: 0;
+    text-align: left;
 }
 
 .table-header {
     padding: 20px;
     border-bottom: 1px solid #4a5568;
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
-}
-
-.table-title-section {
-    display: flex;
-    align-items: center;
-    gap: 15px;
 }
 
 .table-header h3 {
@@ -931,10 +854,110 @@ header p {
 .table-controls {
     display: flex;
     gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.table-controls #distanceFromInput {
+    padding: 8px 12px;
+    border: 1px solid #4a5568;
+    border-radius: 6px;
+    font-size: 14px;
+    background-color: #2d2d2d;
+    color: #e1e8ed;
+    width: 180px;
+}
+
+.table-controls #distanceFromInput:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.table-controls #distanceFromInput::placeholder {
+    color: #a0aec0;
+}
+
+.table-controls label[for="distanceFromInput"],
+.table-controls label[for="perimeterFilter"] {
+    color: #e1e8ed;
+    font-size: 14px;
+}
+
+.table-controls #perimeterFilter {
+    padding: 8px 12px;
+    border: 1px solid #4a5568;
+    border-radius: 6px;
+    font-size: 14px;
+    background-color: #2d2d2d;
+    color: #e1e8ed;
+    width: 80px;
+}
+
+.table-controls #perimeterFilter:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.table-controls .table-control-label {
+    color: #a0aec0;
+    font-size: 14px;
+}
+
+.table-scroll-top {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #4a5568 #1a1a1a;
+}
+
+.table-scroll-top::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-scroll-top::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 4px;
+}
+
+.table-scroll-top::-webkit-scrollbar-thumb {
+    background: #4a5568;
+    border-radius: 4px;
+}
+
+.table-scroll-top::-webkit-scrollbar-thumb:hover {
+    background: #667eea;
+}
+
+.table-scroll-spacer {
+    height: 1px;
+    pointer-events: none;
 }
 
 .table-container {
     overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #4a5568 #1a1a1a;
+}
+
+/* Dark theme scrollbar for venue table */
+.table-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: #4a5568;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: #667eea;
 }
 
 table {
@@ -950,51 +973,33 @@ th, td {
     border-bottom: 1px solid #4a5568;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.editable-cell {
+    cursor: text;
+}
+
+.editable-cell:hover {
+    background-color: rgba(102, 126, 234, 0.1);
+}
+
+.notes-cell,
+.website-cell {
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* Allow text wrapping for history changes column */
-#historyTable td:nth-child(6) {
-    white-space: normal;
-    word-wrap: break-word;
-    max-width: 300px;
-    vertical-align: top;
-}
-
-/* History table specific styling */
-#historyTable {
-    table-layout: auto;
-}
-
-#historyTable th:nth-child(1),
-#historyTable td:nth-child(1) {
-    width: 80px; /* Actions */
-}
-
-#historyTable th:nth-child(2),
-#historyTable td:nth-child(2) {
-    width: 150px; /* Timestamp */
-}
-
-#historyTable th:nth-child(3),
-#historyTable td:nth-child(3) {
-    width: 80px; /* Action */
-}
-
-#historyTable th:nth-child(4),
-#historyTable td:nth-child(4) {
-    width: auto; /* Venue - full width */
-    min-width: 200px;
-}
-
-#historyTable th:nth-child(5),
-#historyTable td:nth-child(5) {
-    width: 120px; /* Location */
-}
-
-#historyTable th:nth-child(6),
-#historyTable td:nth-child(6) {
-    width: 300px; /* Changes */
+.inline-edit-input {
+    width: 100%;
+    padding: 4px 6px;
+    border: 2px solid #667eea;
+    border-radius: 4px;
+    background: #1a1a1a;
+    color: #e1e8ed;
+    font: inherit;
+    outline: none;
+    white-space: nowrap;
 }
 
 th {
@@ -1088,6 +1093,17 @@ td {
     background: #138496;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+}
+
+.search-btn {
+    background: #28a745;
+    color: white;
+}
+
+.search-btn:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
 }
 
 .kanban-btn {
@@ -1220,7 +1236,38 @@ td {
 
 .page-numbers {
     display: flex;
-    gap: 2px;
+    align-items: center;
+    gap: 6px;
+}
+
+.pagination-page-label {
+    color: #a0aec0;
+    font-size: 14px;
+}
+
+.pagination-page-input {
+    width: 50px;
+    height: 36px;
+    padding: 4px 8px;
+    border: 1px solid #4a5568;
+    border-radius: 6px;
+    background-color: #2d2d2d;
+    color: #e1e8ed;
+    font-size: 14px;
+    text-align: center;
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+.pagination-page-input::-webkit-outer-spin-button,
+.pagination-page-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.pagination-page-input:focus {
+    outline: none;
+    border-color: #667eea;
 }
 
 .page-size-selector {
@@ -1424,150 +1471,6 @@ td {
 
 .edit-tab-content.active {
     display: block;
-}
-
-/* Venue History Tab Styles */
-.venue-history-container {
-    padding: 20px 0;
-}
-
-.venue-history-header {
-    margin-bottom: 20px;
-    text-align: center;
-}
-
-.venue-history-header h4 {
-    color: #e1e8ed;
-    margin: 0 0 8px 0;
-    font-size: 18px;
-    font-weight: 600;
-}
-
-.venue-history-subtitle {
-    color: #a0aec0;
-    margin: 0;
-    font-size: 14px;
-}
-
-.venue-history-list {
-    max-height: 400px;
-    overflow-y: auto;
-    border: 1px solid #4a5568;
-    border-radius: 8px;
-    background-color: #1a1a1a;
-}
-
-.venue-history-item {
-    padding: 15px 20px;
-    border-bottom: 1px solid #4a5568;
-    transition: background-color 0.2s ease;
-}
-
-.venue-history-item:last-child {
-    border-bottom: none;
-}
-
-.venue-history-item:hover {
-    background-color: #2d2d2d;
-}
-
-.venue-history-item-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-}
-
-.venue-history-action {
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.venue-history-action.add {
-    background-color: #d4edda;
-    color: #155724;
-}
-
-.venue-history-action.edit {
-    background-color: #fff3cd;
-    color: #856404;
-}
-
-.venue-history-action.delete {
-    background-color: #f8d7da;
-    color: #721c24;
-}
-
-.venue-history-timestamp {
-    color: #a0aec0;
-    font-size: 12px;
-    font-weight: 500;
-}
-
-.venue-history-changes {
-    margin-top: 8px;
-}
-
-.venue-history-change-item {
-    margin-bottom: 4px;
-    padding: 4px 0;
-    font-size: 13px;
-    line-height: 1.4;
-}
-
-.venue-history-change-field {
-    font-weight: 600;
-    color: #e1e8ed;
-}
-
-.venue-history-change-old {
-    color: #dc3545;
-    text-decoration: line-through;
-    margin: 0 4px;
-}
-
-.venue-history-change-arrow {
-    color: #a0aec0;
-    margin: 0 4px;
-}
-
-.venue-history-change-new {
-    color: #28a745;
-    font-weight: 500;
-}
-
-.venue-history-no-changes {
-    color: #a0aec0;
-    font-style: italic;
-    font-size: 13px;
-}
-
-/* Dark theme scrollbar for venue history */
-.venue-history-list::-webkit-scrollbar {
-    width: 8px;
-}
-
-.venue-history-list::-webkit-scrollbar-track {
-    background: #1a1a1a;
-    border-radius: 4px;
-}
-
-.venue-history-list::-webkit-scrollbar-thumb {
-    background: #4a5568;
-    border-radius: 4px;
-}
-
-.venue-history-list::-webkit-scrollbar-thumb:hover {
-    background: #667eea;
-}
-
-/* Firefox scrollbar styling for venue history */
-.venue-history-list {
-    scrollbar-width: thin;
-    scrollbar-color: #4a5568 #1a1a1a;
 }
 
 /* Contact Actions Styling */
@@ -1996,7 +1899,7 @@ td {
     .kanban-section h3 {
         font-size: 1.4rem;
         margin-bottom: 15px;
-        text-align: center;
+        text-align: left;
     }
     
     .kanban-board {
@@ -2050,53 +1953,6 @@ td {
         font-size: 12px;
     }
     
-    /* History Section */
-    .history-section {
-        margin-bottom: 20px;
-    }
-    
-    .history-section h3 {
-        font-size: 1.4rem;
-        margin-bottom: 15px;
-        text-align: center;
-    }
-    
-    .history-search-input {
-        width: 100%;
-        margin-bottom: 15px;
-        padding: 10px;
-        font-size: 14px;
-    }
-    
-    .history-pagination-controls {
-        flex-direction: column;
-        gap: 10px;
-        padding: 10px;
-    }
-    
-    .history-pagination-nav {
-        order: 1;
-        justify-content: center;
-    }
-    
-    .history-pagination-info {
-        order: 2;
-        text-align: center;
-        font-size: 12px;
-    }
-    
-    .history-page-size-selector {
-        order: 3;
-        justify-content: center;
-    }
-    
-    .history-pagination-btn {
-        min-width: 32px;
-        height: 28px;
-        padding: 4px 6px;
-        font-size: 11px;
-    }
-    
     /* Map Section */
     .map-section {
         margin-bottom: 20px;
@@ -2105,7 +1961,7 @@ td {
     .map-section h3 {
         font-size: 1.4rem;
         margin-bottom: 15px;
-        text-align: center;
+        text-align: left;
     }
     
     .map-controls {
@@ -2329,51 +2185,6 @@ td {
         font-size: 14px;
     }
     
-    /* Venue History Tab */
-    .venue-history-container {
-        padding: 10px 0;
-    }
-    
-    .venue-history-list {
-        max-height: 250px;
-    }
-    
-    .venue-history-item {
-        padding: 10px 12px;
-    }
-    
-    .venue-history-item-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 6px;
-    }
-    
-    .venue-history-action {
-        font-size: 11px;
-        padding: 3px 6px;
-    }
-    
-    .venue-history-timestamp {
-        font-size: 11px;
-    }
-    
-    .venue-history-change-item {
-        font-size: 12px;
-        margin-bottom: 3px;
-    }
-    
-    .venue-history-change-field {
-        display: block;
-        margin-bottom: 2px;
-    }
-    
-    .venue-history-change-old,
-    .venue-history-change-arrow,
-    .venue-history-change-new {
-        display: inline;
-        margin: 0 2px;
-    }
-    
     /* Column Toggle Modal */
     .column-toggle-content {
         margin: 10% auto;
@@ -2574,18 +2385,23 @@ td {
         font-size: 10px;
     }
     
+    .venue-timeline {
+        font-size: 10px;
+    }
+    
+    .venue-distance {
+        font-size: 10px;
+    }
+    
     .popup-actions {
         align-self: flex-end;
         gap: 4px;
     }
     
-    .popup-edit-btn,
-    .popup-copy-btn,
-    .popup-kanban-btn,
-    .popup-delete-btn {
+    .popup-actions .action-btn {
         width: 24px;
         height: 24px;
-        font-size: 10px;
+        font-size: 11px;
     }
     
     /* Leaflet popup width control for mobile */
@@ -2615,7 +2431,6 @@ td {
     }
     
     .kanban-section h3,
-    .history-section h3,
     .map-section h3,
     .table-header h3 {
         font-size: 1.2rem;
@@ -2696,16 +2511,14 @@ td {
         font-size: 11px;
     }
     
-    .pagination-btn,
-    .history-pagination-btn {
+    .pagination-btn {
         min-width: 28px;
         height: 24px;
         padding: 2px 4px;
         font-size: 10px;
     }
     
-    .page-numbers,
-    .history-page-numbers {
+    .page-numbers {
         gap: 1px;
     }
     
@@ -2733,13 +2546,18 @@ td {
         font-size: 9px;
     }
     
-    .popup-edit-btn,
-    .popup-copy-btn,
-    .popup-kanban-btn,
-    .popup-delete-btn {
+    .venue-timeline {
+        font-size: 9px;
+    }
+    
+    .venue-distance {
+        font-size: 9px;
+    }
+    
+    .popup-actions .action-btn {
         width: 22px;
         height: 22px;
-        font-size: 9px;
+        font-size: 10px;
     }
     
     /* Leaflet popup width control for extra small devices */

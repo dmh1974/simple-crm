@@ -17524,4 +17524,77 @@ US,Pennsylvania,Frenchville,41.1001,-78.2333
 US,Pennsylvania,Grantville,40.3918,-76.6683
 US,New York,Bemus Point,42.1620,-79.3928
 US,New York,Forestville,42.4684,-79.1759
-US,New York,Sherman,42.1592,-79.5953`
+US,New York,Sherman,42.1592,-79.5953
+US,New York,Marathon,42.4484,-76.0327
+US,New Hampshire,Jackson,44.1462,-71.1806
+US,New York,Midtown,40.7549,-73.9840
+US,Pennsylvania,Havertown,39.9807,-75.3074
+US,Vermont,Enosburg,44.8839,-72.8052
+US,Connecticut,Harwinton,41.7776,-73.0637
+US,Connecticut,Riverton,41.9587,-72.9965
+US,Massachusetts,Tolland,42.0809,-73.0129
+US,New Jersey,Medford,39.9018,-74.8235
+US,New Jersey,Montville,40.9129,-74.3615
+US,New Jersey,Pompton Plains,40.9679,-74.2954
+US,New York,Bronx,40.8448,-73.8648
+US,New York,Chestertown,43.6526,-73.8004
+US,New York,Downsville,42.0806,-74.9954
+US,New York,La Fargeville,44.1945,-75.9677
+US,New York,Roscoe,41.9331,-74.9135
+US,Pennsylvania,Coalport,40.7481,-78.5342
+US,Pennsylvania,Cross Fork,41.4834,-77.8180
+US,Pennsylvania,Newfoundland,41.3073,-75.3196
+US,Pennsylvania,Sandy Lake,41.3487,-80.0823
+US,Pennsylvania,Tigard,45.4278,-122.7712
+US,New Hampshire,Alton,43.4545,-71.2195
+US,New Hampshire,Bath,44.1667,-71.9662
+US,New Jersey,Berkeley Township,39.9260,-74.2315
+US,New Jersey,Harvey Cedars,39.6996,-74.1446
+US,New Jersey,Readington,40.5690,-74.7360
+US,New Jersey,Tabernacle,39.8426,-74.7135
+US,New Jersey,Weekend Wildwood,38.9915,-74.8149
+US,New Jersey,West Windsor,40.2901,-74.6379
+US,New York,Angelica,42.3067,-78.0158
+US,New York,Berkshire,42.3042,-76.1860
+US,New York,Brookfield,42.8056,-75.3443
+US,New York,LeRoy,42.9787,-77.9842
+US,New York,Panama,42.0756,-79.4839
+US,New York,Red Creek,43.2412,-76.7230
+US,New York,Rotterdam Junction,42.8765,-74.0457
+US,New York,Sharon Springs,42.7962,-74.6168
+US,New York,Silver City,35.2679,-77.5794
+US,Pennsylvania,Kimberton,40.1309,-75.5724
+US,Pennsylvania,Veneta,44.0486,-123.3526
+US,Vermont,Stockbridge,43.7823,-72.7548
+US,Connecticut,Bridgewater,41.5265,-73.3610
+US,Connecticut,Rehoboth Beach,38.7209,-75.0760
+US,Massachusetts,Middlefield,42.3481,-73.0159
+US,New Hampshire,Cornish,43.4645,-72.3690
+US,New Jersey,Stone Harbor,39.0509,-74.7579
+US,Pennsylvania,Drums,41.0168,-76.0010
+US,Pennsylvania,Mount Gretna,40.2476,-76.4694
+US,Pennsylvania,Seven Springs,39.9665,-79.2911
+US,Pennsylvania,Tualatin,45.3840,-122.7624
+US,Vermont,Jay,44.9698,-72.4621
+US,Vermont,Jeffersonville,44.6439,-72.8296
+US,Connecticut,Suffield,41.9818,-72.6926
+US,Massachusetts,Wareham,41.7587,-70.7225
+US,New Jersey,Hamilton,40.2079,-74.6755
+US,New Jersey,Margate,39.3284,-74.5035
+US,New Jersey,Pequannock,40.9551,-74.3043
+US,New Jersey,Pleasant Beach,40.0415,-74.0649
+US,Pennsylvania,Berrysburg,40.6023,-76.8114
+US,Pennsylvania,Bowers,40.4868,-75.7424
+US,Pennsylvania,Holland,40.3979,-74.9824
+US,Pennsylvania,Moon Township,40.5145,-80.2173
+US,Pennsylvania,Trout Run,41.3840,-77.0522
+US,Vermont,East Burke,44.5889,-71.9404
+US,Vermont,Fayston,44.2189,-72.8801
+US,Massachusetts,SouthYarmouth,41.6686,-70.1867
+US,New Hampshire,Center Sandwich,43.8073,-71.4395
+US,New Jersey,Holmdel,40.3351,-74.1660
+US,New Jersey,Wildwoods,38.9890,-74.8204
+US,Pennsylvania,Bethel,40.4737,-76.2916
+US,Pennsylvania,Conneaut Lake,41.6034,-80.3053
+US,Pennsylvania,Springs,39.7315,-79.1467
+US,Vermont,Tunbridge,43.9006,-72.4876`

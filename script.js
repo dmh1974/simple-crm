@@ -1,5 +1,8 @@
 
 
+// Standard columns for import/export - only these columns are used
+const STANDARD_COLUMNS = ['Type', 'Venue', 'City', 'State', 'Status', 'Timeline', 'Deadline', 'Contact', 'Phone', 'Email', 'Website', 'Notes'];
+
 class SimpleCRM {
     constructor() {
         this.venues = [];
@@ -16,7 +19,7 @@ class SimpleCRM {
         
         // Pagination properties
         this.currentPage = 1;
-        this.pageSize = 50;
+        this.pageSize = 10;
         this.totalPages = 1;
         
         // Performance optimization - cache column widths
@@ -24,21 +27,24 @@ class SimpleCRM {
         this.lastColumnCalculationHash = null;
         
         // Filter properties
-        this.statusFilters = [];
-        this.regionFilters = [];
         this.typeFilters = [];
+        this.timelineFilters = [];
+        this.statusFilters = [];
         this.minVenueCount = 1; // Default minimum venue count for map
+        
+        // Collapsible sections - which are collapsed (default: none)
+        this.collapsedSections = new Set();
+        
+        // Section order for drag-and-drop reordering
+        this.sectionOrder = ['kanban', 'map', 'table'];
         
         // Map position properties
         this.mapCenter = [43.2994, -74.2179]; // Default center (New York State)
         this.mapZoom = 7; // Default zoom level
         
-        // History tracking properties
-        this.history = [];
-        this.historyPageSize = 5;
-        this.historyCurrentPage = 1;
-        this.historyTotalPages = 1;
-        this.historySearchFilter = '';
+        // Distance calculation - default reference location
+        this.defaultDistanceLocation = 'Saranac Lake, NY';
+        this.perimeterMiles = 2000; // Filter venues within this distance (0 = no limit)
         
         // Location search properties
         this.currentSearchResults = null;
@@ -54,10 +60,6 @@ class SimpleCRM {
             this.applyFilters();
         }, 300);
         
-        // Initialize debounced history search
-        this.debouncedHistorySearch = this.debounce((searchTerm) => {
-            this.applyHistoryFilters();
-        }, 300);
     }
 
 
@@ -88,9 +90,9 @@ class SimpleCRM {
         document.getElementById('fileUpload').addEventListener('change', (e) => this.handleFileUpload(e));
         
         // Filter controls
-        document.getElementById('statusFilterBtn').addEventListener('click', () => this.openFilterModal('status'));
-        document.getElementById('regionFilterBtn').addEventListener('click', () => this.openFilterModal('region'));
         document.getElementById('typeFilterBtn').addEventListener('click', () => this.openFilterModal('type'));
+        document.getElementById('timelineFilterBtn').addEventListener('click', () => this.openFilterModal('timeline'));
+        document.getElementById('statusFilterBtn').addEventListener('click', () => this.openFilterModal('status'));
         document.getElementById('searchFilter').addEventListener('input', (e) => this.debouncedSearch(e.target.value));
         
         // Map venue count filter
@@ -100,6 +102,37 @@ class SimpleCRM {
             this.updateMap();
             this.saveToLocalStorage(); // Save the setting immediately
         });
+        
+        // Distance from (reference location)
+        const distanceFromInput = document.getElementById('distanceFromInput');
+        if (distanceFromInput) {
+            distanceFromInput.addEventListener('change', (e) => {
+                const value = (e.target.value || '').trim();
+                this.defaultDistanceLocation = value || 'Saranac Lake, NY';
+                e.target.value = this.defaultDistanceLocation;
+                this.updateTable();
+                this.updateMap();
+                this.saveToLocalStorage();
+            });
+        }
+        
+        // Perimeter filter (distance in miles from reference location)
+        const perimeterFilter = document.getElementById('perimeterFilter');
+        if (perimeterFilter) {
+            perimeterFilter.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value, 10);
+                this.perimeterMiles = isNaN(value) || value < 0 ? 2000 : value;
+                this.applyFilters();
+                this.saveToLocalStorage();
+            });
+            perimeterFilter.addEventListener('change', (e) => {
+                const value = parseInt(e.target.value, 10);
+                this.perimeterMiles = isNaN(value) || value < 0 ? 2000 : value;
+                e.target.value = this.perimeterMiles;
+                this.applyFilters();
+                this.saveToLocalStorage();
+            });
+        }
         
         // Reset location button
         document.getElementById('resetLocationBtn').addEventListener('click', () => this.resetMapLocation());
@@ -181,11 +214,18 @@ class SimpleCRM {
         // Initialize filter modals
         this.initializeFilterModals();
         
+        // Initialize collapsible sections
+        this.initializeCollapsibleSections();
+        
+        // Initialize section drag-and-drop reordering
+        this.initializeSectionDragDrop();
+        
+        // Initialize table top scroll sync
+        this.initializeTableScrollSync();
+        
         // Initialize kanban board
         this.updateKanbanBoard();
         
-        // Initialize history event listeners
-        this.initializeHistoryEventListeners();
     }
 
 
@@ -337,30 +377,37 @@ class SimpleCRM {
                     <div class="venue-popup">
                         <h4>${data.city}, ${data.state}</h4>
                         <p class="venue-count">${count} venue${count > 1 ? 's' : ''}</p>
-                        <div class="popup-venue-list ${count > 5 ? 'scrollable' : ''}">
+                        <div class="popup-venue-list ${count > 1 ? 'scrollable' : ''}">
                         <ul style="text-align: left; margin: 5px 0; padding-left: 20px;">
                                 ${data.venues.map((venue, venueIndex) => {
                                     const venueName = venue.Venue || 'Unknown Venue';
                                     const venueType = venue.Type || '';
+                                    const venueTimeline = venue.Timeline || '';
+                                    const venueDistance = this.getDistanceForVenue(venue);
                                     const globalIndex = this.venues.findIndex(v => v === venue);
                                     return `
                                         <li class="popup-venue-item">
                                             <div class="popup-venue-info">
                                                 <span class="venue-name">${venueName}</span>
                                                 ${venueType ? `<span class="venue-type">${venueType}</span>` : ''}
+                                                ${venueTimeline ? `<span class="venue-timeline">${venueTimeline}</span>` : ''}
+                                                ${venueDistance !== '--' ? `<span class="venue-distance">${venueDistance}</span>` : ''}
                                             </div>
                                             <div class="popup-actions">
-                                                <button class="popup-edit-btn" data-venue-index="${globalIndex}" title="Edit">
+                                                <button class="action-btn edit-btn popup-edit-btn" data-venue-index="${globalIndex}" title="Edit">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
-                                                <button class="popup-copy-btn" data-venue-index="${globalIndex}" title="Copy">
+                                                <button class="action-btn search-btn popup-search-btn" data-venue-index="${globalIndex}" title="Google Search">
+                                                    <i class="fas fa-search"></i>
+                                                </button>
+                                                <button class="action-btn copy-btn popup-copy-btn" data-venue-index="${globalIndex}" title="Copy">
                                                     <i class="fas fa-copy"></i>
                                                 </button>
-                                                <button class="popup-delete-btn" data-venue-index="${globalIndex}" title="Delete">
+                                                <button class="action-btn delete-btn popup-delete-btn" data-venue-index="${globalIndex}" title="Delete">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                                 ${(!venue.Status || venue.Status.trim() === '') ? `
-                                                <button class="popup-kanban-btn" data-venue-index="${globalIndex}" title="Add to Kanban (CANVAS)">
+                                                <button class="action-btn kanban-btn popup-kanban-btn" data-venue-index="${globalIndex}" title="Add to Kanban (CANVAS)">
                                                     <i class="fas fa-tasks"></i>
                                                 </button>
                                                 ` : ''}
@@ -479,6 +526,57 @@ class SimpleCRM {
         
         // No fuzzy matching - exact matches only
         return null;
+    }
+
+    getDistanceInMiles(lat1, lon1, lat2, lon2) {
+        const R = 3959; // Earth's radius in miles
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    getDistanceForVenue(venue) {
+        const city = venue.City || '';
+        const state = venue.State || '';
+        if (!city.trim() || !state.trim()) return '--';
+        
+        const venueLocation = `${city.trim()}, ${state.trim()}`;
+        const venueCoords = this.geocodeLocation(venueLocation);
+        const defaultCoords = this.geocodeLocation(this.defaultDistanceLocation);
+        
+        if (!venueCoords || !defaultCoords) return '--';
+        
+        const miles = this.getDistanceInMiles(
+            defaultCoords[0], defaultCoords[1],
+            venueCoords[0], venueCoords[1]
+        );
+        return `${miles.toFixed(1)} mi`;
+    }
+
+    getDistanceNumeric(venue) {
+        const city = venue.City || '';
+        const state = venue.State || '';
+        if (!city.trim() || !state.trim()) return Infinity; // Unknown at end when sorting
+        
+        const venueLocation = `${city.trim()}, ${state.trim()}`;
+        const venueCoords = this.geocodeLocation(venueLocation);
+        const defaultCoords = this.geocodeLocation(this.defaultDistanceLocation);
+        
+        if (!venueCoords || !defaultCoords) return Infinity;
+        
+        return this.getDistanceInMiles(
+            defaultCoords[0], defaultCoords[1],
+            venueCoords[0], venueCoords[1]
+        );
+    }
+
+    ensureDistanceHeader() {
+        this.headers = this.headers.filter(h => h !== 'Distance');
+        this.headers.unshift('Distance');
     }
 
     handleLocationSearch(searchTerm) {
@@ -766,28 +864,13 @@ class SimpleCRM {
                 return;
             }
 
-            // Parse headers
-            const newHeaders = lines[0].split('\t');
-            
-            // Add Last Updated column if it doesn't exist
-            if (!newHeaders.includes('Last Updated')) {
-                newHeaders.push('Last Updated');
-            }
-            
-            // If this is the first import, set headers
+            // Use standard columns - fixed order: Type, Venue, City, State, Status, Timeline, Deadline, Contact, Phone, Email, Website, Notes
             if (this.headers.length === 0) {
-                this.headers = newHeaders;
-            } else {
-                // Check if headers match existing data (excluding Last Updated)
-                const headersWithoutLastUpdated = newHeaders.filter(h => h !== 'Last Updated');
-                const existingHeadersWithoutLastUpdated = this.headers.filter(h => h !== 'Last Updated');
-                if (!this.headersMatch(headersWithoutLastUpdated, existingHeadersWithoutLastUpdated)) {
-                    alert('Headers must match existing data structure! Please use the same column order and names.');
-                    return;
-                }
+                this.headers = [...STANDARD_COLUMNS];
+                this.ensureDistanceHeader();
             }
             
-            // Parse data rows
+            // Parse data rows - map by position to STANDARD_COLUMNS (col 0->Type, col 1->Venue, col 2->City, etc.)
             const newVenues = [];
             let importedCount = 0;
             let duplicateCount = 0;
@@ -798,10 +881,9 @@ class SimpleCRM {
                     const values = line.split('\t');
                     const venue = {};
                     
-                    // Ensure we have the same number of values as headers
-                    for (let j = 0; j < this.headers.length; j++) {
-                        venue[this.headers[j]] = values[j] || '';
-                    }
+                    STANDARD_COLUMNS.forEach((col, j) => {
+                        venue[col] = (values[j] || '').trim();
+                    });
                     
                     // Set Last Updated timestamp for imported venues
                     venue['Last Updated'] = new Date().toISOString();
@@ -871,7 +953,7 @@ class SimpleCRM {
             const sampleSize = Math.min(100, this.filteredVenues.length);
             for (let i = 0; i < sampleSize; i++) {
                 const venue = this.filteredVenues[i];
-                const value = venue[header] || '';
+                const value = header === 'Distance' ? this.getDistanceForVenue(venue) : (venue[header] || '');
                 if (value) {
                     const cellWidth = this.getTextWidth(value, '14px Segoe UI');
                     maxWidth = Math.max(maxWidth, cellWidth);
@@ -885,12 +967,31 @@ class SimpleCRM {
             if (header === 'Status') {
                 minWidth = 150; // Minimum 150px for status column
             }
+            // Ensure Type column has adequate width
+            else if (header === 'Type') {
+                minWidth = 150;
+            }
             // Ensure Venue column has adequate width
             else if (header === 'Venue') {
                 minWidth = 200; // Minimum 200px for venue column
             }
+            // Ensure Distance column has adequate width for "XXX.X mi"
+            else if (header === 'Distance') {
+                minWidth = 90;
+            }
+            // Notes column - wider with ellipsis for long text
+            else if (header === 'Notes') {
+                minWidth = 250;
+            }
             
-            columnWidths[header] = Math.max(maxWidth + 30, minWidth);
+            let colWidth = Math.max(maxWidth + 30, minWidth);
+            if (header === 'Notes') {
+                colWidth = Math.min(colWidth, 320); // Cap so long text shows ellipsis
+            }
+            if (header === 'Website') {
+                colWidth = Math.min(colWidth, 180); // Cap - URLs can be very long
+            }
+            columnWidths[header] = colWidth;
         });
         
         // Cache the result
@@ -922,11 +1023,11 @@ class SimpleCRM {
             return;
         }
 
-        // Create CSV content
-        let csvContent = this.headers.join('\t') + '\n';
+        // Export only standard columns in fixed order
+        let csvContent = STANDARD_COLUMNS.join('\t') + '\n';
         
         this.venues.forEach(venue => {
-            const row = this.headers.map(header => venue[header] || '').join('\t');
+            const row = STANDARD_COLUMNS.map(header => (venue[header] || '')).join('\t');
             csvContent += row + '\n';
         });
 
@@ -957,7 +1058,7 @@ class SimpleCRM {
         // Add action column header first
         const actionTh = document.createElement('th');
         actionTh.textContent = 'Actions';
-        actionTh.style.width = '120px';
+        actionTh.style.width = '150px';
         headerRow.appendChild(actionTh);
         
         // Add headers with sorting capabilities
@@ -1008,6 +1109,20 @@ class SimpleCRM {
             editBtn.title = 'Edit';
             editBtn.addEventListener('click', () => this.editRow(startIndex + index));
             
+            const searchBtn = document.createElement('button');
+            searchBtn.className = 'action-btn search-btn';
+            searchBtn.innerHTML = '<i class="fas fa-search"></i>';
+            searchBtn.title = 'Google Search';
+            searchBtn.addEventListener('click', () => {
+                const venueName = (venue.Venue || '').trim();
+                const city = (venue.City || '').trim();
+                const state = (venue.State || '').trim();
+                const query = city && state ? `${venueName} ${city}, ${state}`.trim() : [venueName, city, state].filter(Boolean).join(' ');
+                if (query) {
+                    window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank', 'noopener,noreferrer');
+                }
+            });
+            
             const copyBtn = document.createElement('button');
             copyBtn.className = 'action-btn copy-btn';
             copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
@@ -1021,6 +1136,7 @@ class SimpleCRM {
             deleteBtn.addEventListener('click', () => this.deleteRow(startIndex + index));
             
             actionTd.appendChild(editBtn);
+            actionTd.appendChild(searchBtn);
             actionTd.appendChild(copyBtn);
             actionTd.appendChild(deleteBtn);
             
@@ -1040,13 +1156,21 @@ class SimpleCRM {
                 if (this.hiddenColumns.has(header)) return;
                 
                 const td = document.createElement('td');
-                const value = venue[header] || '';
+                const value = header === 'Distance' ? this.getDistanceForVenue(venue) : (venue[header] || '');
                 const width = columnWidths[header] || 120;
+                const isDistance = header === 'Distance';
                 
                 // Apply width to data cells as well
                 td.style.width = width + 'px';
                 td.style.minWidth = width + 'px';
                 td.style.maxWidth = width + 'px';
+                if (!isDistance) {
+                    let cellClass = 'editable-cell';
+                    if (header === 'Notes') cellClass += ' notes-cell';
+                    if (header === 'Website') cellClass += ' website-cell';
+                    td.className = cellClass;
+                    td.title = (header === 'Notes' || header === 'Website') && value ? value : 'Click to edit';
+                }
                 
                 // Apply special formatting for certain fields
                 if (header === 'Status' && value) {
@@ -1067,6 +1191,15 @@ class SimpleCRM {
                     td.textContent = value;
                 }
                 
+                if (!isDistance) {
+                    td.addEventListener('click', (e) => {
+                        if (td.querySelector('input.inline-edit-input')) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.startInlineEdit(td, venue, header);
+                    });
+                }
+                
                 row.appendChild(td);
             });
             
@@ -1078,6 +1211,133 @@ class SimpleCRM {
         
         // Update pagination controls
         this.updatePaginationControls();
+        
+        // Update top scroll spacer and sync
+        this.updateTableScrollSpacer();
+    }
+
+    initializeTableScrollSync() {
+        const tableScrollTop = document.getElementById('tableScrollTop');
+        const tableContainer = document.getElementById('tableContainer');
+        if (!tableScrollTop || !tableContainer) return;
+        
+        tableScrollTop.addEventListener('scroll', () => {
+            if (this._tableScrollSyncing) return;
+            this._tableScrollSyncing = true;
+            tableContainer.scrollLeft = tableScrollTop.scrollLeft;
+            requestAnimationFrame(() => { this._tableScrollSyncing = false; });
+        });
+        tableContainer.addEventListener('scroll', () => {
+            if (this._tableScrollSyncing) return;
+            this._tableScrollSyncing = true;
+            tableScrollTop.scrollLeft = tableContainer.scrollLeft;
+            requestAnimationFrame(() => { this._tableScrollSyncing = false; });
+        });
+    }
+
+    updateTableScrollSpacer() {
+        const spacer = document.getElementById('tableScrollSpacer');
+        const table = document.getElementById('venueTable');
+        const tableScrollTop = document.getElementById('tableScrollTop');
+        const tableContainer = document.getElementById('tableContainer');
+        if (!spacer || !table || !tableScrollTop || !tableContainer) return;
+        
+        const updateWidth = () => {
+            const scrollWidth = Math.max(table.scrollWidth, tableContainer.clientWidth);
+            spacer.style.minWidth = scrollWidth + 'px';
+            tableScrollTop.scrollLeft = tableContainer.scrollLeft;
+        };
+        updateWidth();
+        requestAnimationFrame(updateWidth);
+    }
+
+    startInlineEdit(td, venue, header) {
+        if (td.querySelector('input.inline-edit-input')) return;
+        
+        // Close any other cell currently in edit mode
+        const existingInput = document.querySelector('.inline-edit-input');
+        if (existingInput) {
+            const existingTd = existingInput.closest('td');
+            if (existingTd && existingTd !== td) {
+                existingInput.blur();
+            }
+        }
+        
+        const originalValue = venue[header] || '';
+        const savedContent = td.innerHTML;
+        
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'inline-edit-input';
+        input.value = originalValue;
+        td.innerHTML = '';
+        td.appendChild(input);
+        input.focus();
+        
+        const renderCellContent = (value) => {
+            if (header === 'Status' && value) {
+                const statusClass = this.getStatusClass(value);
+                td.innerHTML = `<span class="${statusClass}">${value}</span>`;
+            } else if (header === 'Email' && value) {
+                td.innerHTML = `<a href="mailto:${value}">${value}</a>`;
+            } else if (header === 'Phone' && value) {
+                td.innerHTML = `<a href="tel:${value}">${value}</a>`;
+            } else if (header === 'Website' && value) {
+                let url = value;
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    url = 'https://' + url;
+                }
+                td.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer">${value}</a>`;
+            } else {
+                td.textContent = value || '';
+            }
+        };
+        
+        const outsideClickHandler = (e) => {
+            if (!td.contains(e.target)) {
+                document.removeEventListener('mousedown', outsideClickHandler);
+                finishEdit(true);
+            }
+        };
+        
+        const finishEdit = (save) => {
+            if (!input.isConnected) return;
+            const newValue = input.value.trim();
+            input.removeEventListener('blur', blurHandler);
+            input.removeEventListener('keydown', keydownHandler);
+            document.removeEventListener('mousedown', outsideClickHandler);
+            
+            if (save && newValue !== String(originalValue)) {
+                const oldValue = venue[header] || '';
+                venue[header] = newValue;
+                venue['Last Updated'] = new Date().toISOString();
+                renderCellContent(newValue);
+                this.updateMap();
+                this.updateKanbanBoard();
+                this.saveToLocalStorage();
+            } else {
+                renderCellContent(originalValue);
+            }
+        };
+        
+        const blurHandler = () => {
+            document.removeEventListener('mousedown', outsideClickHandler);
+            finishEdit(true);
+        };
+        const keydownHandler = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                input.blur();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                finishEdit(false);
+                renderCellContent(originalValue);
+            }
+        };
+        
+        document.addEventListener('mousedown', outsideClickHandler);
+        input.addEventListener('blur', blurHandler);
+        input.addEventListener('keydown', keydownHandler);
     }
 
     calculatePagination() {
@@ -1108,7 +1368,7 @@ class SimpleCRM {
         
         const infoText = document.createElement('div');
         infoText.className = 'pagination-info';
-        infoText.textContent = `Showing ${startIndex}-${endIndex} of ${totalItems} venues`;
+        infoText.textContent = `Showing ${startIndex}-${endIndex} of ${totalItems} venues (${this.totalPages} pages)`;
         
         // Navigation buttons
         const navButtons = document.createElement('div');
@@ -1128,21 +1388,31 @@ class SimpleCRM {
         prevBtn.disabled = this.currentPage === 1;
         prevBtn.addEventListener('click', () => this.goToPage(this.currentPage - 1));
         
-        // Page numbers
+        // Page input - type to jump to a page
         const pageNumbers = document.createElement('div');
         pageNumbers.className = 'page-numbers';
         
-        // Show up to 5 page numbers around current page
-        const startPage = Math.max(1, this.currentPage - 2);
-        const endPage = Math.min(this.totalPages, this.currentPage + 2);
-        
-        for (let i = startPage; i <= endPage; i++) {
-            const pageBtn = document.createElement('button');
-            pageBtn.className = `btn btn-small pagination-btn ${i === this.currentPage ? 'active' : ''}`;
-            pageBtn.textContent = i;
-            pageBtn.addEventListener('click', () => this.goToPage(i));
-            pageNumbers.appendChild(pageBtn);
-        }
+        const pageInput = document.createElement('input');
+        pageInput.type = 'number';
+        pageInput.className = 'pagination-page-input';
+        pageInput.value = this.currentPage;
+        pageInput.min = 1;
+        pageInput.max = this.totalPages;
+        pageInput.setAttribute('aria-label', `Page 1 to ${this.totalPages}`);
+        pageInput.addEventListener('change', (e) => {
+            const page = parseInt(e.target.value, 10);
+            if (!isNaN(page) && page >= 1 && page <= this.totalPages) {
+                this.goToPage(page);
+            } else {
+                e.target.value = this.currentPage;
+            }
+        });
+        pageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                pageInput.blur();
+            }
+        });
+        pageNumbers.appendChild(pageInput);
         
         // Next page button
         const nextBtn = document.createElement('button');
@@ -1193,9 +1463,13 @@ class SimpleCRM {
         paginationContainer.appendChild(navButtons);
         paginationContainer.appendChild(pageSizeSelector);
         
-        // Insert after the table
-        const tableSection = document.querySelector('.table-section');
-        tableSection.appendChild(paginationContainer);
+        // Insert inside section-content so it collapses with the table
+        const tableSectionContent = document.querySelector('.table-section .section-content');
+        if (tableSectionContent) {
+            tableSectionContent.appendChild(paginationContainer);
+        } else {
+            document.querySelector('.table-section')?.appendChild(paginationContainer);
+        }
     }
 
     goToPage(page) {
@@ -1231,6 +1505,26 @@ class SimpleCRM {
                     }
                     // Close the popup
                     popup.remove();
+                }
+            });
+        });
+
+        // Add event listeners for search buttons
+        const searchButtons = popup.getElement().querySelectorAll('.popup-search-btn');
+        searchButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const venueIndex = parseInt(button.dataset.venueIndex);
+                if (venueIndex >= 0 && venueIndex < this.venues.length) {
+                    const venue = this.venues[venueIndex];
+                    const venueName = (venue.Venue || '').trim();
+                    const city = (venue.City || '').trim();
+                    const state = (venue.State || '').trim();
+                    const query = city && state ? `${venueName} ${city}, ${state}`.trim() : [venueName, city, state].filter(Boolean).join(' ');
+                    if (query) {
+                        window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank', 'noopener,noreferrer');
+                    }
                 }
             });
         });
@@ -1311,16 +1605,20 @@ class SimpleCRM {
         }
         
         this.filteredVenues.sort((a, b) => {
-            let aVal = a[column] || '';
-            let bVal = b[column] || '';
-            
-            // Handle numeric values
-            if (!isNaN(aVal) && !isNaN(bVal)) {
-                aVal = parseFloat(aVal) || 0;
-                bVal = parseFloat(bVal) || 0;
+            let aVal, bVal;
+            if (column === 'Distance') {
+                aVal = this.getDistanceNumeric(a);
+                bVal = this.getDistanceNumeric(b);
             } else {
-                aVal = aVal.toString().toLowerCase();
-                bVal = bVal.toString().toLowerCase();
+                aVal = a[column] || '';
+                bVal = b[column] || '';
+                if (!isNaN(aVal) && !isNaN(bVal)) {
+                    aVal = parseFloat(aVal) || 0;
+                    bVal = parseFloat(bVal) || 0;
+                } else {
+                    aVal = aVal.toString().toLowerCase();
+                    bVal = bVal.toString().toLowerCase();
+                }
             }
             
             if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
@@ -1433,25 +1731,40 @@ class SimpleCRM {
     applyFilters() {
         const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
         
+        // Perimeter filter (distance from reference location)
+        const perimeterActive = this.perimeterMiles > 0;
+        
         // Early exit if no filters are applied
-        if (this.statusFilters.length === 0 && 
-            this.regionFilters.length === 0 && 
-            this.typeFilters.length === 0 && 
-            !searchFilter) {
+        if (!perimeterActive && this.typeFilters.length === 0 && this.timelineFilters.length === 0 && this.statusFilters.length === 0 && !searchFilter) {
             this.filteredVenues = [...this.venues];
         } else {
         this.filteredVenues = this.venues.filter(venue => {
-                // Status filter
-                const statusMatch = this.statusFilters.length === 0 || 
-                    (venue.Status && this.statusFilters.includes(venue.Status));
-                
-                // Region filter
-                const regionMatch = this.regionFilters.length === 0 || 
-                    (venue.Region && this.regionFilters.includes(venue.Region));
+                // Perimeter filter - include only venues within perimeterMiles
+                const perimeterMatch = !perimeterActive || (() => {
+                    const dist = this.getDistanceNumeric(venue);
+                    return dist !== Infinity && dist <= this.perimeterMiles;
+                })();
                 
                 // Type filter
+                const venueTypeBlank = !venue.Type || String(venue.Type).trim() === '';
                 const typeMatch = this.typeFilters.length === 0 || 
-                    (venue.Type && this.typeFilters.includes(venue.Type));
+                    this.typeFilters.some(f => 
+                        f === 'Blank' ? venueTypeBlank : (venue.Type && venue.Type === f)
+                    );
+                
+                // Timeline filter
+                const venueTimelineBlank = !venue.Timeline || String(venue.Timeline).trim() === '';
+                const timelineMatch = this.timelineFilters.length === 0 || 
+                    this.timelineFilters.some(f => 
+                        f === 'Blank' ? venueTimelineBlank : (venue.Timeline && venue.Timeline === f)
+                    );
+                
+                // Status filter
+                const venueStatusBlank = !venue.Status || String(venue.Status).trim() === '';
+                const statusMatch = this.statusFilters.length === 0 || 
+                    this.statusFilters.some(f => 
+                        f === 'Blank' ? venueStatusBlank : (venue.Status && venue.Status === f)
+                    );
                 
                 // Search filter
             const searchMatch = !searchFilter || 
@@ -1459,7 +1772,7 @@ class SimpleCRM {
                     value && value.toString().toLowerCase().includes(searchFilter)
                 );
             
-            return statusMatch && regionMatch && typeMatch && searchMatch;
+            return perimeterMatch && typeMatch && timelineMatch && statusMatch && searchMatch;
         });
         }
         
@@ -1482,16 +1795,20 @@ class SimpleCRM {
         if (!this.sortColumn) return;
         
         this.filteredVenues.sort((a, b) => {
-            let aVal = a[this.sortColumn] || '';
-            let bVal = b[this.sortColumn] || '';
-            
-            // Handle numeric values
-            if (!isNaN(aVal) && !isNaN(bVal)) {
-                aVal = parseFloat(aVal) || 0;
-                bVal = parseFloat(bVal) || 0;
+            let aVal, bVal;
+            if (this.sortColumn === 'Distance') {
+                aVal = this.getDistanceNumeric(a);
+                bVal = this.getDistanceNumeric(b);
             } else {
-                aVal = aVal.toString().toLowerCase();
-                bVal = bVal.toString().toLowerCase();
+                aVal = a[this.sortColumn] || '';
+                bVal = b[this.sortColumn] || '';
+                if (!isNaN(aVal) && !isNaN(bVal)) {
+                    aVal = parseFloat(aVal) || 0;
+                    bVal = parseFloat(bVal) || 0;
+                } else {
+                    aVal = aVal.toString().toLowerCase();
+                    bVal = bVal.toString().toLowerCase();
+                }
             }
             
             if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
@@ -1511,17 +1828,11 @@ class SimpleCRM {
         // Populate general info form
         this.populateGeneralForm(venue);
         
-        // Populate venue form
-        this.populateVenueForm(venue);
-        
         // Populate booking form
         this.populateBookingForm(venue);
         
         // Populate contact form
         this.populateContactForm(venue);
-        
-        // Populate history tab
-        this.populateVenueHistory(venue);
         
         this.openModal();
     }
@@ -1530,22 +1841,23 @@ class SimpleCRM {
         const form = document.getElementById('editForm');
         form.innerHTML = '';
         
-        // Define general fields (excluding contact, booking, venue fields, and Last Updated)
+        // Define general fields (excluding contact, booking, venue fields, Distance, and Last Updated)
         const generalFields = this.headers.filter(header => 
-            !['Contact', 'Best Time', 'Pref', 'Phone', 'Email', 'Notes', 'Status', 'Last Date', 'Timeline', 'Deadline', 'Played', 'Rate', 'Sets', 'Cap', 'Draw', 'Genre', 'R', 'Last Updated'].includes(header)
+            !['Contact', 'Best Time', 'Pref', 'Phone', 'Email', 'Notes', 'Website', 'Status', 'Last Date', 'Deadline', 'Played', 'Rate', 'Sets', 'Cap', 'Draw', 'Genre', 'R', 'Distance', 'Last Updated'].includes(header)
         );
         
-        // Reorder fields to put Venue first
+        // Reorder fields to put Type first, then Venue, then the rest
         const reorderedFields = [];
         
-        // Add Venue first if it exists
+        if (generalFields.includes('Type')) {
+            reorderedFields.push('Type');
+        }
         if (generalFields.includes('Venue')) {
             reorderedFields.push('Venue');
         }
         
-        // Add all other fields
         generalFields.forEach(header => {
-            if (header !== 'Venue') {
+            if (header !== 'Type' && header !== 'Venue') {
                 reorderedFields.push(header);
             }
         });
@@ -1583,8 +1895,13 @@ class SimpleCRM {
                     input.appendChild(option);
                 });
                 
-                // Set current value
-                input.value = venue[header] || '';
+                // Set current value; for Type, auto-select first option when empty
+                const currentValue = venue[header] || '';
+                if (header === 'Type' && !currentValue && uniqueValues.length > 0) {
+                    input.value = uniqueValues[0];
+                } else {
+                    input.value = currentValue;
+                }
                 
             } else {
                 input = document.createElement('input');
@@ -1599,158 +1916,6 @@ class SimpleCRM {
             form.appendChild(formGroup);
         });
         
-        // Add Last Updated field as read-only
-        if (this.headers.includes('Last Updated')) {
-            const lastUpdatedGroup = document.createElement('div');
-            lastUpdatedGroup.className = 'form-group';
-            
-            const lastUpdatedLabel = document.createElement('label');
-            lastUpdatedLabel.textContent = 'Last Updated';
-            
-            const lastUpdatedInput = document.createElement('input');
-            lastUpdatedInput.type = 'text';
-            lastUpdatedInput.value = venue['Last Updated'] ? new Date(venue['Last Updated']).toLocaleString() : '';
-            lastUpdatedInput.readOnly = true;
-            lastUpdatedInput.style.backgroundColor = '#1a1a1a';
-            lastUpdatedInput.style.color = '#a0aec0';
-            lastUpdatedInput.style.cursor = 'not-allowed';
-            
-            lastUpdatedGroup.appendChild(lastUpdatedLabel);
-            lastUpdatedGroup.appendChild(lastUpdatedInput);
-            form.appendChild(lastUpdatedGroup);
-        }
-    }
-
-    populateVenueHistory(venue) {
-        const historyList = document.getElementById('venueHistoryList');
-        if (!historyList) return;
-        
-        // Get venue ID to match history entries
-        const venueId = this.getVenueId(venue);
-        
-        // Filter history entries for this specific venue
-        const venueHistory = this.history.filter(entry => entry.venueId === venueId);
-        
-        // Sort by timestamp (newest first)
-        venueHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        
-        historyList.innerHTML = '';
-        
-        if (venueHistory.length === 0) {
-            historyList.innerHTML = `
-                <div class="venue-history-item">
-                    <div class="venue-history-no-changes">
-                        No history available for this venue.
-                    </div>
-                </div>
-            `;
-            return;
-        }
-        
-        // Display each history entry
-        venueHistory.forEach(entry => {
-            const historyItem = document.createElement('div');
-            historyItem.className = 'venue-history-item';
-            
-            // Format timestamp
-            const date = new Date(entry.timestamp);
-            const timestamp = date.toLocaleString();
-            
-            // Create changes display
-            let changesHtml = '';
-            if (entry.changes && entry.changes.length > 0) {
-                changesHtml = entry.changes.map(change => `
-                    <div class="venue-history-change-item">
-                        <span class="venue-history-change-field">${change.field}:</span>
-                        <span class="venue-history-change-old">${change.oldValue || '(empty)'}</span>
-                        <span class="venue-history-change-arrow">→</span>
-                        <span class="venue-history-change-new">${change.newValue || '(empty)'}</span>
-                    </div>
-                `).join('');
-            } else if (entry.action === 'Add') {
-                changesHtml = '<div class="venue-history-no-changes">New venue added</div>';
-            } else if (entry.action === 'Delete') {
-                changesHtml = '<div class="venue-history-no-changes">Venue deleted</div>';
-            }
-            
-            historyItem.innerHTML = `
-                <div class="venue-history-item-header">
-                    <span class="venue-history-action ${entry.action.toLowerCase()}">${entry.action}</span>
-                    <span class="venue-history-timestamp">${timestamp}</span>
-                </div>
-                <div class="venue-history-changes">
-                    ${changesHtml}
-                </div>
-            `;
-            
-            historyList.appendChild(historyItem);
-        });
-    }
-
-    populateVenueForm(venue) {
-        const form = document.getElementById('venueForm');
-        form.innerHTML = '';
-        
-        // Define venue fields
-        const venueFields = ['Cap', 'Draw', 'Genre', 'R'];
-        
-        venueFields.forEach(header => {
-            // Only create fields that exist in the headers
-            if (!this.headers.includes(header)) return;
-            
-            const formGroup = document.createElement('div');
-            formGroup.className = 'form-group';
-            
-            const label = document.createElement('label');
-            label.textContent = header;
-            
-            let input;
-            
-            if (header === 'Cap' || header === 'Draw') {
-                input = document.createElement('input');
-                input.type = 'number';
-                input.min = '0';
-                input.step = '1';
-                input.value = venue[header] || '';
-                
-            } else if (header === 'Genre') {
-                input = document.createElement('select');
-                
-                // Get unique values for Genre from all venues
-                const uniqueValues = [...new Set(this.venues.map(v => v[header]).filter(Boolean))];
-                
-                // Sort values alphabetically
-                uniqueValues.sort();
-                
-                // Add empty option
-                const emptyOption = document.createElement('option');
-                emptyOption.value = '';
-                emptyOption.textContent = '-- Select --';
-                input.appendChild(emptyOption);
-                
-                // Add existing values as options
-                uniqueValues.forEach(value => {
-                    const option = document.createElement('option');
-                    option.value = value;
-                    option.textContent = value;
-                    input.appendChild(option);
-                });
-                
-                // Set current value
-                input.value = venue[header] || '';
-                
-            } else {
-                input = document.createElement('input');
-                input.type = 'text';
-                input.value = venue[header] || '';
-            }
-            
-            input.dataset.field = header;
-            
-            formGroup.appendChild(label);
-            formGroup.appendChild(input);
-            form.appendChild(formGroup);
-        });
     }
 
     populateBookingForm(venue) {
@@ -1758,7 +1923,7 @@ class SimpleCRM {
         form.innerHTML = '';
         
         // Define booking fields
-        const bookingFields = ['Status', 'Last Date', 'Timeline', 'Deadline', 'Played', 'Rate', 'Sets'];
+        const bookingFields = ['Status', 'Last Date', 'Deadline', 'Played', 'Rate', 'Sets'];
         
         bookingFields.forEach(header => {
             // Only create fields that exist in the headers
@@ -1824,7 +1989,7 @@ class SimpleCRM {
         form.innerHTML = '';
         
         // Define contact fields
-        const contactFields = ['Contact', 'Best Time', 'Pref', 'Phone', 'Email', 'Notes'];
+        const contactFields = ['Contact', 'Best Time', 'Pref', 'Phone', 'Email', 'Website', 'Notes'];
         
         contactFields.forEach(header => {
             // Only create fields that exist in the headers
@@ -1863,12 +2028,10 @@ class SimpleCRM {
 
     saveEdit() {
         const generalForm = document.getElementById('editForm');
-        const venueForm = document.getElementById('venueForm');
         const bookingForm = document.getElementById('bookingForm');
         const contactForm = document.getElementById('contactForm');
         const allInputs = [
             ...generalForm.querySelectorAll('input, textarea, select'),
-            ...venueForm.querySelectorAll('input, textarea, select'),
             ...bookingForm.querySelectorAll('input, textarea, select'),
             ...contactForm.querySelectorAll('input, textarea, select')
         ];
@@ -1892,9 +2055,6 @@ class SimpleCRM {
             this.venues.push(venue);
             this.filteredVenues = [...this.venues];
             
-            // Add to history
-            this.addHistoryEntry('Add', venue);
-            
             // Go to the last page to show the new row
             this.calculatePagination();
             this.currentPage = this.totalPages;
@@ -1909,12 +2069,11 @@ class SimpleCRM {
             venue[input.dataset.field] = input.value;
         });
             
-            // Check for changes and add to history
+            // Check for changes
             const changes = this.getChangesDescription(originalVenue, venue);
             if (changes && changes.length > 0) {
                 // Update Last Updated timestamp when venue is modified
                 venue['Last Updated'] = new Date().toISOString();
-                this.addHistoryEntry('Edit', venue, changes);
             }
         
         // Update the main venues array
@@ -1957,13 +2116,13 @@ class SimpleCRM {
     }
 
     deleteRow(index) {
+        const scrollY = window.scrollY;
+        const scrollX = window.scrollX;
+        
         if (!confirm('Are you sure you want to delete this venue?')) return;
         
         const venue = this.filteredVenues[index];
         const originalIndex = this.venues.findIndex(v => v === venue);
-        
-        // Add to history before deleting
-        this.addHistoryEntry('Delete', venue);
         
         if (originalIndex !== -1) {
             this.venues.splice(originalIndex, 1);
@@ -1975,6 +2134,10 @@ class SimpleCRM {
         this.updateKanbanBoard(); // Update kanban board
         this.updateMap(); // Update map after deleting
         this.saveToLocalStorage();
+        
+        requestAnimationFrame(() => {
+            window.scrollTo(scrollX, scrollY);
+        });
     }
 
     addNewRow() {
@@ -1993,10 +2156,8 @@ class SimpleCRM {
         
         // Populate the edit modal with the new venue data
         this.populateGeneralForm(newVenue);
-        this.populateVenueForm(newVenue);
         this.populateBookingForm(newVenue);
         this.populateContactForm(newVenue);
-        this.populateVenueHistory(newVenue);
         
         // Open the edit modal
         this.openModal();
@@ -2020,10 +2181,8 @@ class SimpleCRM {
         
         // Populate the edit modal with the copied venue data
         this.populateGeneralForm(copiedVenue);
-        this.populateVenueForm(copiedVenue);
         this.populateBookingForm(copiedVenue);
         this.populateContactForm(copiedVenue);
-        this.populateVenueHistory(copiedVenue);
         
         // Open the edit modal
         this.openModal();
@@ -2052,13 +2211,13 @@ class SimpleCRM {
         const state = venue.State || '';
         
         // Generate the AI prompt string
-        const aiPrompt = `You are a CRM assistant. Find the most appropriate single contact for booking my solo singer-songwriter act for pay at ${venueName}, ${city}, ${state} (category: ${type}). Provide only the following information: Contact Name, Phone, E-Mail, Website. Respond strictly as a JSON object with these keys: "Contact", "Phone", "Email", "Website". ONLY a Pretty Printed JSON array in text box with opening and closing [ ].`;
+        const aiPrompt = `You are a CRM assistant. Find the most appropriate single contact for booking my solo singer-songwriter act for pay at ${venueName}, ${city}, ${state} (category: ${type}). Provide only the following information: Contact Name, Phone, E-Mail, Website. Respond strictly as a JSON object with these keys: "Contact", "Phone", "Email", "Website". ONLY a Pretty Printed JSON array in text box with opening and closing [ ]`;
         
         // URL encode the prompt
         const encodedPrompt = encodeURIComponent(aiPrompt);
         
         // Create ChatGPT URL with the encoded prompt
-        const chatGptUrl = `https://chatgpt.com/?q=${encodedPrompt}&temporary-chat=true`;
+        const chatGptUrl = `https://www.perplexity.ai/search?q=${encodedPrompt}&temporary-chat=true`;
         
         // Open ChatGPT in a new tab
         window.open(chatGptUrl, '_blank', 'noopener,noreferrer');
@@ -2224,9 +2383,6 @@ class SimpleCRM {
             newValue: 'CANVAS'
         }];
         
-        // Add to history
-        this.addHistoryEntry('Edit', venue, changes);
-        
         // Update the main venues array
         const originalIndex = this.venues.findIndex(v => v === venue);
         if (originalIndex !== -1) {
@@ -2265,17 +2421,20 @@ class SimpleCRM {
         
         this.venues = [];
         this.filteredVenues = [];
-        this.headers = [];
+        this.headers = [...STANDARD_COLUMNS];
+        this.ensureDistanceHeader();
         this.hiddenColumns.clear();
         this.sortColumn = null;
         this.sortDirection = 'asc';
         this.currentPage = 1;
         this.totalPages = 1;
-        this.statusFilters = [];
-        this.regionFilters = [];
         this.typeFilters = [];
+        this.timelineFilters = [];
+        this.perimeterMiles = 2000;
         this.minVenueCount = 1;
-        this.history = [];
+        
+        const perimeterInput = document.getElementById('perimeterFilter');
+        if (perimeterInput) perimeterInput.value = '2000';
         
         this.updateTable();
         this.updateFilterButtonTexts();
@@ -2346,12 +2505,133 @@ class SimpleCRM {
     }
 
     initializeFilterModals() {
-        // Status filter modal
-        this.setupFilterModal('status');
-        // Region filter modal
-        this.setupFilterModal('region');
-        // Type filter modal
         this.setupFilterModal('type');
+        this.setupFilterModal('timeline');
+        this.setupFilterModal('status');
+    }
+
+    initializeCollapsibleSections() {
+        document.querySelectorAll('.collapsible-section').forEach(section => {
+            const sectionId = section.dataset.section;
+            if (this.collapsedSections.has(sectionId)) {
+                section.classList.add('collapsed');
+            }
+            const header = section.querySelector('.collapsible-header');
+            if (header) {
+                header.addEventListener('click', (e) => {
+                    // Don't toggle if clicking a button (e.g. Import/Export) or drag handle
+                    if (e.target.closest('button') || e.target.closest('.drag-handle')) return;
+                    this.toggleSection(sectionId);
+                });
+            }
+        });
+    }
+
+    initializeSectionDragDrop() {
+        const container = document.querySelector('.container');
+        if (!container) return;
+        
+        // Apply saved order on init
+        this.applySectionOrder();
+        
+        const sections = container.querySelectorAll('.collapsible-section');
+        sections.forEach(section => {
+            const handle = section.querySelector('.drag-handle');
+            if (!handle) return;
+            
+            handle.setAttribute('draggable', 'true');
+            
+            handle.addEventListener('dragstart', (e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', section.dataset.section);
+                section.classList.add('section-dragging');
+            });
+            
+            handle.addEventListener('dragend', () => {
+                section.classList.remove('section-dragging');
+                container.querySelectorAll('.collapsible-section').forEach(s => {
+                    s.querySelector('.collapsible-header')?.classList.remove('drag-over');
+                });
+            });
+        });
+        
+        container.querySelectorAll('.collapsible-section').forEach(section => {
+            section.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const draggingSection = container.querySelector('.collapsible-section.section-dragging');
+                if (draggingSection && draggingSection !== section) {
+                    section.querySelector('.collapsible-header')?.classList.add('drag-over');
+                }
+            });
+            
+            section.addEventListener('dragleave', (e) => {
+                if (!section.contains(e.relatedTarget)) {
+                    section.querySelector('.collapsible-header')?.classList.remove('drag-over');
+                }
+            });
+            
+            section.addEventListener('drop', (e) => {
+                e.preventDefault();
+                section.querySelector('.collapsible-header')?.classList.remove('drag-over');
+                const sectionId = e.dataTransfer.getData('text/plain');
+                const draggingSection = container.querySelector(`.collapsible-section[data-section="${sectionId}"]`);
+                if (!draggingSection || draggingSection === section) return;
+                
+                const dropIndex = Array.from(container.querySelectorAll('.collapsible-section')).indexOf(section);
+                const sectionsArray = Array.from(container.querySelectorAll('.collapsible-section'));
+                const dragIndex = sectionsArray.indexOf(draggingSection);
+                
+                // Reorder sectionOrder array
+                const order = [...this.sectionOrder];
+                const [moved] = order.splice(dragIndex, 1);
+                order.splice(dropIndex, 0, moved);
+                this.sectionOrder = order;
+                
+                this.applySectionOrder();
+                this.saveToLocalStorage();
+                
+                if (sectionId === 'map' && this.map && this.mapReady) {
+                    setTimeout(() => this.map.invalidateSize(), 100);
+                }
+            });
+        });
+    }
+    
+    applySectionOrder() {
+        const container = document.querySelector('.container');
+        if (!container) return;
+        
+        const sections = container.querySelectorAll('.collapsible-section');
+        const sectionMap = {};
+        sections.forEach(s => { sectionMap[s.dataset.section] = s; });
+        
+        let ref = container.firstChild;
+        this.sectionOrder.forEach(sectionId => {
+            const el = sectionMap[sectionId];
+            if (el) {
+                container.insertBefore(el, ref);
+                ref = el.nextSibling;
+            }
+        });
+    }
+
+    toggleSection(sectionId) {
+        const section = document.querySelector(`.collapsible-section[data-section="${sectionId}"]`);
+        if (!section) return;
+        const isCollapsing = !section.classList.contains('collapsed');
+        if (isCollapsing) {
+            this.collapsedSections.add(sectionId);
+            section.classList.add('collapsed');
+        } else {
+            this.collapsedSections.delete(sectionId);
+            section.classList.remove('collapsed');
+            // Map needs invalidateSize when shown after being hidden
+            if (sectionId === 'map' && this.map && this.mapReady) {
+                setTimeout(() => this.map.invalidateSize(), 100);
+            }
+        }
+        this.saveToLocalStorage();
     }
 
     setupFilterModal(filterType) {
@@ -2382,8 +2662,8 @@ class SimpleCRM {
             this.toggleSelectAll(filterType, e.target.checked);
         });
 
-        // Clear all button
-        clearAllBtn.addEventListener('click', () => this.clearAllFilters(filterType));
+        // Clear all button (clears checkboxes in this modal only)
+        clearAllBtn.addEventListener('click', () => this.clearFilterModalCheckboxes(filterType));
     }
 
     openFilterModal(filterType) {
@@ -2409,17 +2689,20 @@ class SimpleCRM {
         let currentFilters = [];
         
         switch(filterType) {
-            case 'status':
-                values = [...new Set(this.venues.map(v => v.Status).filter(Boolean))];
-                currentFilters = this.statusFilters || [];
-                break;
-            case 'region':
-                values = [...new Set(this.venues.map(v => v.Region).filter(Boolean))];
-                currentFilters = this.regionFilters || [];
-                break;
             case 'type':
                 values = [...new Set(this.venues.map(v => v.Type).filter(Boolean))];
+                values.push('Blank');
                 currentFilters = this.typeFilters || [];
+                break;
+            case 'timeline':
+                values = [...new Set(this.venues.map(v => v.Timeline).filter(Boolean))];
+                values.push('Blank');
+                currentFilters = this.timelineFilters || [];
+                break;
+            case 'status':
+                values = [...new Set(this.venues.map(v => v.Status).filter(Boolean))];
+                values.push('Blank');
+                currentFilters = this.statusFilters || [];
                 break;
         }
 
@@ -2458,7 +2741,7 @@ class SimpleCRM {
         });
     }
 
-    clearAllFilters(filterType) {
+    clearFilterModalCheckboxes(filterType) {
         const checkboxes = document.querySelectorAll(`#${filterType}Checkboxes input[type="checkbox"]`);
         checkboxes.forEach(checkbox => {
             checkbox.checked = false;
@@ -2469,13 +2752,16 @@ class SimpleCRM {
     }
 
     clearAllFilters() {
-        // Clear all filter arrays
-        this.statusFilters = [];
-        this.regionFilters = [];
         this.typeFilters = [];
+        this.timelineFilters = [];
+        this.statusFilters = [];
+        this.perimeterMiles = 0; // 0 = no limit, show all
         
         // Clear search input
         document.getElementById('searchFilter').value = '';
+        
+        const perimeterInput = document.getElementById('perimeterFilter');
+        if (perimeterInput) perimeterInput.value = '0';
         
         // Update filter button texts
         this.updateFilterButtonTexts();
@@ -2501,16 +2787,12 @@ class SimpleCRM {
         const selectedValues = Array.from(checkboxes).map(cb => cb.value);
         
         // Store the selected filters
-        switch(filterType) {
-            case 'status':
-                this.statusFilters = selectedValues;
-                break;
-            case 'region':
-                this.regionFilters = selectedValues;
-                break;
-            case 'type':
-                this.typeFilters = selectedValues;
-                break;
+        if (filterType === 'type') {
+            this.typeFilters = selectedValues;
+        } else if (filterType === 'timeline') {
+            this.timelineFilters = selectedValues;
+        } else if (filterType === 'status') {
+            this.statusFilters = selectedValues;
         }
         
         // Update the filter button text
@@ -2534,22 +2816,22 @@ class SimpleCRM {
         }
         
         if (selectedValues.length === 0) {
-            buttonText.textContent = `All ${filterType.charAt(0).toUpperCase() + filterType.slice(1)}s`;
+            const label = filterType === 'status' ? 'Statuses' : filterType.charAt(0).toUpperCase() + filterType.slice(1) + 's';
+            buttonText.textContent = `All ${label}`;
         } else if (selectedValues.length === 1) {
             buttonText.textContent = selectedValues[0];
         } else {
-            buttonText.textContent = `${selectedValues.length} ${filterType}s selected`;
+            const pluralLabel = filterType === 'status' ? 'statuses' : filterType + 's';
+            buttonText.textContent = `${selectedValues.length} ${pluralLabel} selected`;
         }
     }
 
     updateFilterButtonTexts() {
-        // Only update if the filter buttons exist
-        if (document.getElementById('statusFilterText') && 
-            document.getElementById('regionFilterText') && 
-            document.getElementById('typeFilterText')) {
-            this.updateFilterButtonText('status', this.statusFilters);
-            this.updateFilterButtonText('region', this.regionFilters);
+        if (document.getElementById('typeFilterText')) {
             this.updateFilterButtonText('type', this.typeFilters);
+        }
+        if (document.getElementById('timelineFilterText')) {
+            this.updateFilterButtonText('timeline', this.timelineFilters);
         }
     }
 
@@ -2583,23 +2865,18 @@ class SimpleCRM {
         bookedContent.innerHTML = '';
         bookAgainContent.innerHTML = '';
 
-        // Group venues by status
-        this.venues.forEach(venue => {
-            const status = venue.Status || '';
-            const card = this.createKanbanCard(venue);
-            
-            // Skip if card creation failed (kanban board not ready)
-            if (!card) return;
-            
-            if (status.includes('CANVAS')) {
-                canvasContent.appendChild(card);
-            } else if (status.includes('FOLLOW-UP')) {
-                followUpContent.appendChild(card);
-            } else if (status.includes('BOOKED')) {
-                bookedContent.appendChild(card);
-            } else if (status.includes('BOOK-AGAIN')) {
-                bookAgainContent.appendChild(card);
-            }
+        // Group venues by status, preserve order (no re-sorting - respects add order / table order)
+        const canvasVenues = this.venues.filter(v => (v.Status || '').includes('CANVAS'));
+        const followUpVenues = this.venues.filter(v => (v.Status || '').includes('FOLLOW-UP'));
+        const bookedVenues = this.venues.filter(v => (v.Status || '').includes('BOOKED'));
+        const bookAgainVenues = this.venues.filter(v => (v.Status || '').includes('BOOK-AGAIN'));
+
+        [canvasVenues, followUpVenues, bookedVenues, bookAgainVenues].forEach((venueList, i) => {
+            const column = [canvasContent, followUpContent, bookedContent, bookAgainContent][i];
+            venueList.forEach(venue => {
+                const card = this.createKanbanCard(venue);
+                if (card) column.appendChild(card);
+            });
         });
     }
 
@@ -2616,14 +2893,19 @@ class SimpleCRM {
         const venueName = venue.Venue || 'Unknown Venue';
         const city = venue.City || '';
         const state = venue.State || '';
-        const region = venue.Region || '';
-        const contact = venue.Contact || '';
+        const venueType = venue.Type || '';
+        const venueTimeline = venue.Timeline || '';
+        const venueDistance = this.getDistanceForVenue(venue);
+        const locationStr = [city, state].filter(Boolean).join(', ');
         
         card.innerHTML = `
-            <h5>${venueName}</h5>
-            <p class="venue-location">${city}, ${state}</p>
-            ${region ? `<p class="venue-region">${region}</p>` : ''}
-            ${contact ? `<p>${contact}</p>` : ''}
+            <div class="kanban-card-info">
+                <span class="venue-name">${venueName}</span>
+                ${locationStr ? `<span class="venue-location">${locationStr}</span>` : ''}
+                ${venueType ? `<span class="venue-type">${venueType}</span>` : ''}
+                ${venueTimeline ? `<span class="venue-timeline">${venueTimeline}</span>` : ''}
+                ${venueDistance !== '--' ? `<span class="venue-distance">${venueDistance}</span>` : ''}
+            </div>
             <div class="venue-actions">
                 <button class="venue-action-btn edit-action" title="Edit">
                     <i class="fas fa-edit"></i>
@@ -2697,9 +2979,6 @@ class SimpleCRM {
                 oldValue: currentStatus,
                 newValue: newStatus
             }];
-            
-            // Add to history
-            this.addHistoryEntry('Edit', venue, changes);
             
             this.updateKanbanBoard();
             
@@ -2808,15 +3087,16 @@ class SimpleCRM {
                 sortColumn: this.sortColumn,
                 sortDirection: this.sortDirection,
                 pageSize: this.pageSize,
-                statusFilters: this.statusFilters,
-                regionFilters: this.regionFilters,
                 typeFilters: this.typeFilters,
+                timelineFilters: this.timelineFilters,
+                statusFilters: this.statusFilters,
+                perimeterMiles: this.perimeterMiles,
                 minVenueCount: this.minVenueCount,
+                defaultDistanceLocation: this.defaultDistanceLocation,
                 mapCenter: this.mapCenter,
                 mapZoom: this.mapZoom,
-                history: this.history,
-                historyPageSize: this.historyPageSize,
-                historySearchFilter: this.historySearchFilter
+                collapsedSections: Array.from(this.collapsedSections),
+                sectionOrder: this.sectionOrder,
             }));
         } catch (error) {
             console.warn('Could not save to localStorage:', error);
@@ -2829,30 +3109,41 @@ class SimpleCRM {
             if (saved) {
                 const data = JSON.parse(saved);
                 this.venues = data.venues || [];
-                this.headers = data.headers || [];
+                // Normalize headers to standard columns only
+                this.headers = [...STANDARD_COLUMNS];
+                this.ensureDistanceHeader();
                 this.hiddenColumns = new Set(data.hiddenColumns || []);
                 this.sortColumn = data.sortColumn || null;
                 this.sortDirection = data.sortDirection || 'asc';
-                this.pageSize = data.pageSize || 50;
-                this.statusFilters = data.statusFilters || [];
-                this.regionFilters = data.regionFilters || [];
+                this.pageSize = data.pageSize || 10;
                 this.typeFilters = data.typeFilters || [];
+                this.timelineFilters = data.timelineFilters || [];
+                this.statusFilters = data.statusFilters || [];
+                this.perimeterMiles = data.perimeterMiles !== undefined ? data.perimeterMiles : 2000;
                 this.minVenueCount = data.minVenueCount || 1;
+                this.defaultDistanceLocation = data.defaultDistanceLocation || 'Saranac Lake, NY';
                 this.mapCenter = data.mapCenter || [43.2994, -74.2179];
                 this.mapZoom = data.mapZoom || 7;
-                this.history = data.history || [];
-                this.historyPageSize = data.historyPageSize || 5;
-                this.historySearchFilter = data.historySearchFilter || '';
+                this.collapsedSections = new Set(data.collapsedSections || []);
+                this.sectionOrder = data.sectionOrder && Array.isArray(data.sectionOrder) ? data.sectionOrder : ['kanban', 'map', 'table'];
+                
+                // Set min venues and distance from input values from stored settings
+                const minVenueInput = document.getElementById('minVenueFilter');
+                if (minVenueInput) {
+                    minVenueInput.value = this.minVenueCount;
+                }
+                const distanceFromInputEl = document.getElementById('distanceFromInput');
+                if (distanceFromInputEl) {
+                    distanceFromInputEl.value = this.defaultDistanceLocation;
+                }
+                const perimeterInputEl = document.getElementById('perimeterFilter');
+                if (perimeterInputEl) {
+                    perimeterInputEl.value = this.perimeterMiles;
+                }
                 
                 if (this.venues.length > 0) {
                     // Apply existing filters to set filteredVenues
                     this.applyFilters();
-                    
-                    // Set min venues filter input value from stored setting
-                    const minVenueInput = document.getElementById('minVenueFilter');
-                    if (minVenueInput) {
-                        minVenueInput.value = this.minVenueCount;
-                    }
                     
                     // Update table and other components after a small delay to ensure all data is loaded
                     setTimeout(() => {
@@ -2866,42 +3157,12 @@ class SimpleCRM {
                     this.updateKanbanBoard(); // Update kanban board (will show empty state)
                 }
                 
-                // Restore history search filter value
-                const historySearchInput = document.getElementById('historySearchFilter');
-                if (historySearchInput) {
-                    historySearchInput.value = this.historySearchFilter;
-                }
-                
-                // Update history table after data is loaded
-                this.updateHistoryTable();
             }
         } catch (error) {
             console.warn('Could not load from localStorage:', error);
         }
     }
 
-    // History tracking methods
-    addHistoryEntry(action, venue, changes = null) {
-        const venueId = this.getVenueId(venue);
-        const timestamp = new Date().toISOString();
-        
-        const historyEntry = {
-            id: Date.now() + Math.random(), // Unique ID
-            timestamp: timestamp,
-            action: action,
-            venueId: venueId,
-            venueName: venue.Venue || 'Unknown Venue',
-            city: venue.City || '',
-            state: venue.State || '',
-            changes: changes
-        };
-        
-        this.history.unshift(historyEntry); // Add to beginning of array
-        
-        this.updateHistoryTable();
-        this.saveToLocalStorage();
-    }
-    
     getVenueId(venue) {
         const venueName = (venue.Venue || '').trim().toLowerCase();
         const city = (venue.City || '').trim().toLowerCase();
@@ -2927,311 +3188,6 @@ class SimpleCRM {
         });
         
         return changes.length > 0 ? changes : null;
-    }
-
-    updateHistoryTable() {
-        const tbody = document.getElementById('historyTableBody');
-        if (!tbody) return; // History table not loaded yet
-        
-        tbody.innerHTML = '';
-        
-        // Apply search filter
-        let filteredHistory = this.history;
-        if (this.historySearchFilter) {
-            filteredHistory = this.history.filter(entry => {
-                const searchTerm = this.historySearchFilter.toLowerCase();
-                return (
-                    entry.venueName.toLowerCase().includes(searchTerm) ||
-                    entry.city.toLowerCase().includes(searchTerm) ||
-                    entry.state.toLowerCase().includes(searchTerm) ||
-                    entry.action.toLowerCase().includes(searchTerm) ||
-                    (entry.changes && entry.changes.some(change => 
-                        change.field.toLowerCase().includes(searchTerm) ||
-                        (change.oldValue && change.oldValue.toString().toLowerCase().includes(searchTerm)) ||
-                        (change.newValue && change.newValue.toString().toLowerCase().includes(searchTerm))
-                    ))
-                );
-            });
-        }
-        
-        // Calculate pagination
-        this.historyTotalPages = Math.ceil(filteredHistory.length / this.historyPageSize);
-        if (this.historyCurrentPage > this.historyTotalPages) {
-            this.historyCurrentPage = Math.max(1, this.historyTotalPages);
-        }
-        
-        // Get current page data
-        const startIndex = (this.historyCurrentPage - 1) * this.historyPageSize;
-        const endIndex = startIndex + this.historyPageSize;
-        const currentPageData = filteredHistory.slice(startIndex, endIndex);
-        
-        // Display history entries
-        currentPageData.forEach(entry => {
-            const row = document.createElement('tr');
-            
-            // Format timestamp
-            const date = new Date(entry.timestamp);
-            const timestamp = date.toLocaleString();
-            
-            // Create changes display
-            let changesHtml = '';
-            if (entry.changes && entry.changes.length > 0) {
-                changesHtml = entry.changes.map(change => `
-                    <div class="history-change-item">
-                        <span class="history-change-field">${change.field}:</span>
-                        <span class="history-change-old">${change.oldValue || '(empty)'}</span>
-                        <span class="history-change-arrow">→</span>
-                        <span class="history-change-new">${change.newValue || '(empty)'}</span>
-                    </div>
-                `).join('');
-            } else if (entry.action === 'Add') {
-                changesHtml = '<span style="color: #28a745; font-style: italic;">New venue added</span>';
-            } else if (entry.action === 'Delete') {
-                changesHtml = '<span style="color: #dc3545; font-style: italic;">Venue deleted</span>';
-            }
-            
-            row.innerHTML = `
-                <td class="history-actions">
-                    ${entry.action !== 'Delete' ? `
-                        <button class="action-btn edit-btn history-edit-btn" title="Edit Venue" data-venue-id="${entry.venueId}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                    ` : ''}
-                </td>
-                <td class="history-timestamp">${timestamp}</td>
-                <td><span class="history-action ${entry.action.toLowerCase()}">${entry.action}</span></td>
-                <td class="history-venue">${entry.venueName}</td>
-                <td class="history-location">${entry.city}, ${entry.state}</td>
-                <td class="history-changes">${changesHtml}</td>
-            `;
-            
-            tbody.appendChild(row);
-        });
-        
-        // Add event listeners for history edit buttons
-        const historyEditButtons = tbody.querySelectorAll('.history-edit-btn');
-        historyEditButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const venueId = button.dataset.venueId;
-                this.editVenueFromHistory(venueId);
-            });
-        });
-        
-        // Show message if no history
-        if (currentPageData.length === 0) {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td colspan="6" style="text-align: center; color: #a0aec0; padding: 20px;">
-                    ${this.history.length === 0 ? 'No history available' : 
-                      filteredHistory.length === 0 ? 'No entries match your search' : 'No entries on this page'}
-                </td>
-            `;
-            tbody.appendChild(row);
-        }
-        
-        // Update pagination controls
-        this.updateHistoryPaginationControls();
-    }
-
-    updateHistoryPaginationControls() {
-        // Remove existing pagination controls
-        const existingPagination = document.querySelector('.history-pagination-controls');
-        if (existingPagination) {
-            existingPagination.remove();
-        }
-        
-        // Only show pagination if there are 5+ entries
-        if (this.history.length < 5) return;
-        
-        // Create pagination container
-        const paginationContainer = document.createElement('div');
-        paginationContainer.className = 'history-pagination-controls';
-        
-        // Apply search filter to get filtered count
-        let filteredHistory = this.history;
-        if (this.historySearchFilter) {
-            filteredHistory = this.history.filter(entry => {
-                const searchTerm = this.historySearchFilter.toLowerCase();
-                return (
-                    entry.venueName.toLowerCase().includes(searchTerm) ||
-                    entry.city.toLowerCase().includes(searchTerm) ||
-                    entry.state.toLowerCase().includes(searchTerm) ||
-                    entry.action.toLowerCase().includes(searchTerm) ||
-                    (entry.changes && entry.changes.some(change => 
-                        change.field.toLowerCase().includes(searchTerm) ||
-                        (change.oldValue && change.oldValue.toString().toLowerCase().includes(searchTerm)) ||
-                        (change.newValue && change.newValue.toString().toLowerCase().includes(searchTerm))
-                    ))
-                );
-            });
-        }
-        
-        // Pagination info
-        const startIndex = (this.historyCurrentPage - 1) * this.historyPageSize + 1;
-        const endIndex = Math.min(this.historyCurrentPage * this.historyPageSize, filteredHistory.length);
-        const totalItems = filteredHistory.length;
-        
-        const infoText = document.createElement('div');
-        infoText.className = 'history-pagination-info';
-        infoText.textContent = `Showing ${startIndex}-${endIndex} of ${totalItems} history entries`;
-        
-        // Navigation buttons
-        const navButtons = document.createElement('div');
-        navButtons.className = 'history-pagination-nav';
-        
-        // First page button
-        const firstBtn = document.createElement('button');
-        firstBtn.className = 'history-pagination-btn';
-        firstBtn.textContent = '«';
-        firstBtn.disabled = this.historyCurrentPage === 1;
-        firstBtn.addEventListener('click', () => this.goToHistoryPage(1));
-        
-        // Previous page button
-        const prevBtn = document.createElement('button');
-        prevBtn.className = 'history-pagination-btn';
-        prevBtn.textContent = '‹';
-        prevBtn.disabled = this.historyCurrentPage === 1;
-        prevBtn.addEventListener('click', () => this.goToHistoryPage(this.historyCurrentPage - 1));
-        
-        // Page numbers
-        const pageNumbers = document.createElement('div');
-        pageNumbers.className = 'history-page-numbers';
-        
-        // Show up to 5 page numbers around current page
-        const startPage = Math.max(1, this.historyCurrentPage - 2);
-        const endPage = Math.min(this.historyTotalPages, this.historyCurrentPage + 2);
-        
-        for (let i = startPage; i <= endPage; i++) {
-            const pageBtn = document.createElement('button');
-            pageBtn.className = `history-pagination-btn ${i === this.historyCurrentPage ? 'active' : ''}`;
-            pageBtn.textContent = i;
-            pageBtn.addEventListener('click', () => this.goToHistoryPage(i));
-            pageNumbers.appendChild(pageBtn);
-        }
-        
-        // Next page button
-        const nextBtn = document.createElement('button');
-        nextBtn.className = 'history-pagination-btn';
-        nextBtn.textContent = '›';
-        nextBtn.disabled = this.historyCurrentPage === this.historyTotalPages;
-        nextBtn.addEventListener('click', () => this.goToHistoryPage(this.historyCurrentPage + 1));
-        
-        // Last page button
-        const lastBtn = document.createElement('button');
-        lastBtn.className = 'history-pagination-btn';
-        lastBtn.textContent = '»';
-        lastBtn.disabled = this.historyCurrentPage === this.historyTotalPages;
-        lastBtn.addEventListener('click', () => this.goToHistoryPage(this.historyTotalPages));
-        
-        // Page size selector
-        const pageSizeSelector = document.createElement('div');
-        pageSizeSelector.className = 'history-page-size-selector';
-        pageSizeSelector.innerHTML = `
-            <label for="historyPageSizeSelect">Show:</label>
-            <select id="historyPageSizeSelect">
-                <option value="5" ${this.historyPageSize === 5 ? 'selected' : ''}>5</option>
-                <option value="10" ${this.historyPageSize === 10 ? 'selected' : ''}>10</option>
-                <option value="25" ${this.historyPageSize === 25 ? 'selected' : ''}>25</option>
-                <option value="50" ${this.historyPageSize === 50 ? 'selected' : ''}>50</option>
-                <option value="100" ${this.historyPageSize === 100 ? 'selected' : ''}>100</option>
-                <option value="200" ${this.historyPageSize === 200 ? 'selected' : ''}>200</option>
-            </select>
-        `;
-        
-        // Add event listener for page size change
-        const pageSizeSelect = pageSizeSelector.querySelector('#historyPageSizeSelect');
-        pageSizeSelect.addEventListener('change', (e) => {
-            this.historyPageSize = parseInt(e.target.value);
-            this.historyCurrentPage = 1; // Reset to first page
-            this.updateHistoryTable();
-            this.saveToLocalStorage(); // Save the setting
-        });
-        
-        // Assemble pagination controls
-        navButtons.appendChild(firstBtn);
-        navButtons.appendChild(prevBtn);
-        navButtons.appendChild(pageNumbers);
-        navButtons.appendChild(nextBtn);
-        navButtons.appendChild(lastBtn);
-        
-        paginationContainer.appendChild(infoText);
-        paginationContainer.appendChild(navButtons);
-        paginationContainer.appendChild(pageSizeSelector);
-        
-        // Insert after the history table
-        const historySection = document.querySelector('.history-section');
-        historySection.appendChild(paginationContainer);
-    }
-
-    goToHistoryPage(page) {
-        if (page >= 1 && page <= this.historyTotalPages && page !== this.historyCurrentPage) {
-            this.historyCurrentPage = page;
-            this.updateHistoryTable();
-        }
-    }
-
-    clearHistory() {
-        if (confirm('Are you sure you want to clear all history? This cannot be undone!')) {
-            this.history = [];
-            this.historyCurrentPage = 1;
-            this.historyTotalPages = 1;
-            this.updateHistoryTable();
-            this.saveToLocalStorage();
-        }
-    }
-
-    applyHistoryFilters() {
-        const searchFilter = document.getElementById('historySearchFilter').value.toLowerCase();
-        this.historySearchFilter = searchFilter;
-        
-        // Reset to first page when filtering
-        this.historyCurrentPage = 1;
-        
-        // Update history table
-        this.updateHistoryTable();
-    }
-
-    editVenueFromHistory(venueId) {
-        // Find the venue in the current venues array using the venue ID
-        const venue = this.venues.find(v => this.getVenueId(v) === venueId);
-        
-        if (venue) {
-            // Find the venue in filtered venues for editing
-            const filteredIndex = this.filteredVenues.findIndex(v => v === venue);
-            if (filteredIndex >= 0) {
-                // Venue is in filtered results, edit directly
-                this.editRow(filteredIndex);
-            } else {
-                // Venue is not in filtered results, show all venues and edit
-                this.filteredVenues = [...this.venues];
-                this.currentPage = 1;
-                this.updateTable();
-                this.updateFilterButtonTexts();
-                const newFilteredIndex = this.filteredVenues.findIndex(v => v === venue);
-                if (newFilteredIndex >= 0) {
-                    this.editRow(newFilteredIndex);
-                }
-            }
-        } else {
-            // Venue not found - might have been deleted
-            alert('This venue is no longer available for editing. It may have been deleted.');
-        }
-    }
-
-    initializeHistoryEventListeners() {
-        // Clear history button
-        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
-        if (clearHistoryBtn) {
-            clearHistoryBtn.addEventListener('click', () => this.clearHistory());
-        }
-        
-        // History search input
-        const historySearchFilter = document.getElementById('historySearchFilter');
-        if (historySearchFilter) {
-            historySearchFilter.addEventListener('input', (e) => this.debouncedHistorySearch(e.target.value));
-        }
     }
 
     // Debounce utility method

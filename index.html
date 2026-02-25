@@ -13,8 +13,14 @@
 <body>
     <div class="container">
 
-        <div class="kanban-section">
-            <div class="kanban-board">
+        <div class="kanban-section collapsible-section" data-section="kanban">
+            <div class="section-header collapsible-header">
+                <span class="drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>
+                <h3>Kanban Board</h3>
+                <i class="fas fa-chevron-down toggle-icon"></i>
+            </div>
+            <div class="section-content">
+                <div class="kanban-board">
                 <div class="kanban-column">
                     <div class="kanban-header">
                         <h4>Canvas</h4>
@@ -54,40 +60,18 @@
                         <!-- Venues will be populated dynamically -->
                     </div>
                 </div>
+                </div>
             </div>
         </div>
 
-        <div class="history-section">
-            <div class="table-header">
-                <div class="table-title-section">
-                    <h3>History</h3>
-                    <button id="clearHistoryBtn" class="btn btn-small btn-danger">Clear History</button>
-                </div>
-                <div class="table-controls">
-                    <input type="text" id="historySearchFilter" placeholder="Search history entries..." class="history-search-input">
-                </div>
+        <div class="map-section collapsible-section" data-section="map">
+            <div class="section-header collapsible-header">
+                <span class="drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>
+                <h3>Map</h3>
+                <i class="fas fa-chevron-down toggle-icon"></i>
             </div>
-            <div class="table-container">
-                <table id="historyTable">
-                    <thead>
-                        <tr>
-                            <th>Actions</th>
-                            <th>Timestamp</th>
-                            <th>Action</th>
-                            <th>Venue</th>
-                            <th>Location</th>
-                            <th>Changes</th>
-                        </tr>
-                    </thead>
-                    <tbody id="historyTableBody">
-                        <!-- History entries will be populated dynamically -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="map-section">
-            <div class="map-controls">
+            <div class="section-content">
+                <div class="map-controls">
                 <label for="minVenueFilter">Min venues:</label>
                 <input type="number" id="minVenueFilter" min="1" value="1" title="Show only locations with this many venues or more">
                 <button id="resetLocationBtn" class="btn btn-small btn-secondary" title="Reset map to default location and zoom">
@@ -98,12 +82,14 @@
                     <input type="text" id="locationSearch" placeholder="Type city, state..." autocomplete="off">
                     <div id="locationSearchResults" class="location-search-results"></div>
                 </div>
+                </div>
+                <div id="venueMap"></div>
             </div>
-            <div id="venueMap"></div>
         </div>
 
-        <div class="table-section">
-            <div class="table-header">
+        <div class="table-section collapsible-section" data-section="table">
+            <div class="section-header collapsible-header">
+                <span class="drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>
                 <div class="table-title-section">
                     <h3>Venue Data</h3>
                     <button id="importDataBtn" class="btn btn-primary btn-small">
@@ -111,7 +97,16 @@
                         Import/Export
                     </button>
                 </div>
+                <i class="fas fa-chevron-down toggle-icon"></i>
+            </div>
+            <div class="section-content">
+                <div class="table-header">
                 <div class="table-controls">
+                    <label for="distanceFromInput">Distance from:</label>
+                    <input type="text" id="distanceFromInput" placeholder="City, State" title="Reference location for distance calculations" value="Saranac Lake, NY">
+                    <label for="perimeterFilter">Perimeter:</label>
+                    <input type="number" id="perimeterFilter" min="0" value="2000" title="Show only venues within this many miles (0 = no limit)">
+                    <span class="table-control-label">mi</span>
                     <button id="addRowBtn" class="btn btn-small">Add Row</button>
                     <button id="toggleColumnsBtn" class="btn btn-small btn-secondary">Toggle Columns</button>
                     <button id="resetLayoutBtn" class="btn btn-small btn-secondary">Reset Layout</button>
@@ -121,16 +116,16 @@
             
             <div class="filters-section">
                 <div class="filter-controls">
-                    <button id="statusFilterBtn" class="filter-btn">
-                        <span id="statusFilterText">All Statuses</span>
-                        <i class="fas fa-chevron-down"></i>
-                    </button>
-                    <button id="regionFilterBtn" class="filter-btn">
-                        <span id="regionFilterText">All Regions</span>
-                        <i class="fas fa-chevron-down"></i>
-                    </button>
                     <button id="typeFilterBtn" class="filter-btn">
                         <span id="typeFilterText">All Types</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <button id="timelineFilterBtn" class="filter-btn">
+                        <span id="timelineFilterText">All Timelines</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <button id="statusFilterBtn" class="filter-btn">
+                        <span id="statusFilterText">All Statuses</span>
                         <i class="fas fa-chevron-down"></i>
                     </button>
                     <input type="text" id="searchFilter" placeholder="Search venues, cities, contacts...">
@@ -138,8 +133,11 @@
                         Clear All Filters
                     </button>
                 </div>
-            </div>
-            <div class="table-container">
+                </div>
+                <div class="table-scroll-top" id="tableScrollTop" aria-hidden="true">
+                    <div class="table-scroll-spacer" id="tableScrollSpacer"></div>
+                </div>
+                <div class="table-container" id="tableContainer">
                 <table id="venueTable">
                     <thead>
                         <tr id="headerRow">
@@ -150,6 +148,7 @@
                         <!-- Data will be populated dynamically -->
                     </tbody>
                 </table>
+                </div>
             </div>
         </div>
 
@@ -160,21 +159,13 @@
                 
                 <div class="edit-venue-tabs">
                     <button class="edit-tab-btn active" data-tab="general">General Info</button>
-                    <button class="edit-tab-btn" data-tab="venue">Venue</button>
                     <button class="edit-tab-btn" data-tab="booking">Booking</button>
                     <button class="edit-tab-btn" data-tab="contact">Contact Details</button>
-                    <button class="edit-tab-btn" data-tab="history">History</button>
                 </div>
                 
                 <div class="edit-tab-content active" id="generalTab">
                     <form id="editForm">
                         <!-- General form fields will be populated dynamically -->
-                    </form>
-                </div>
-                
-                <div class="edit-tab-content" id="venueTab">
-                    <form id="venueForm">
-                        <!-- Venue form fields will be populated dynamically -->
                     </form>
                 </div>
                 
@@ -195,14 +186,6 @@
                         <button type="button" class="btn btn-primary" id="importContactJsonBtn">
                             <i class="fas fa-upload"></i> Import ChatGPT Response
                         </button>
-                    </div>
-                </div>
-                
-                <div class="edit-tab-content" id="historyTab">
-                    <div class="venue-history-container">
-                        <div id="venueHistoryList" class="venue-history-list">
-                            <!-- History records will be populated dynamically -->
-                        </div>
                     </div>
                 </div>
                 
@@ -262,6 +245,52 @@
         </div>
 
         <!-- Filter Modals -->
+        <div class="modal filter-modal" id="typeFilterModal">
+            <div class="modal-content filter-modal-content">
+                <span class="close">&times;</span>
+                <h3>Filter by Type</h3>
+                <div class="filter-options">
+                    <div class="filter-header">
+                        <label class="select-all-label">
+                            <input type="checkbox" id="typeSelectAll">
+                            <span>Select All</span>
+                        </label>
+                        <button id="typeClearAll" class="btn btn-small btn-secondary">Clear All</button>
+                    </div>
+                    <div id="typeCheckboxes" class="filter-checkboxes">
+                        <!-- Checkboxes will be populated dynamically -->
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" id="typeApplyBtn">Apply Filters</button>
+                    <button type="button" class="btn btn-secondary" id="typeCancelBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal filter-modal" id="timelineFilterModal">
+            <div class="modal-content filter-modal-content">
+                <span class="close">&times;</span>
+                <h3>Filter by Timeline</h3>
+                <div class="filter-options">
+                    <div class="filter-header">
+                        <label class="select-all-label">
+                            <input type="checkbox" id="timelineSelectAll">
+                            <span>Select All</span>
+                        </label>
+                        <button id="timelineClearAll" class="btn btn-small btn-secondary">Clear All</button>
+                    </div>
+                    <div id="timelineCheckboxes" class="filter-checkboxes">
+                        <!-- Checkboxes will be populated dynamically -->
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" id="timelineApplyBtn">Apply Filters</button>
+                    <button type="button" class="btn btn-secondary" id="timelineCancelBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+
         <div class="modal filter-modal" id="statusFilterModal">
             <div class="modal-content filter-modal-content">
                 <span class="close">&times;</span>
@@ -285,51 +314,6 @@
             </div>
         </div>
 
-        <div class="modal filter-modal" id="regionFilterModal">
-            <div class="modal-content filter-modal-content">
-                <span class="close">&times;</span>
-                <h3>Filter by Region</h3>
-                <div class="filter-options">
-                    <div class="filter-header">
-                        <label class="select-all-label">
-                            <input type="checkbox" id="regionSelectAll">
-                            <span>Select All</span>
-                        </label>
-                        <button id="regionClearAll" class="btn btn-small btn-secondary">Clear All</button>
-                    </div>
-                    <div id="regionCheckboxes" class="filter-checkboxes">
-                        <!-- Checkboxes will be populated dynamically -->
-                    </div>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-primary" id="regionApplyBtn">Apply Filters</button>
-                    <button type="button" class="btn btn-secondary" id="regionCancelBtn">Cancel</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="modal filter-modal" id="typeFilterModal">
-            <div class="modal-content filter-modal-content">
-                <span class="close">&times;</span>
-                <h3>Filter by Type</h3>
-                <div class="filter-options">
-                    <div class="filter-header">
-                        <label class="select-all-label">
-                            <input type="checkbox" id="typeSelectAll">
-                            <span>Select All</span>
-                        </label>
-                        <button id="typeClearAll" class="btn btn-small btn-secondary">Clear All</button>
-                    </div>
-                    <div id="typeCheckboxes" class="filter-checkboxes">
-                        <!-- Checkboxes will be populated dynamically -->
-                    </div>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-primary" id="typeApplyBtn">Apply Filters</button>
-                    <button type="button" class="btn btn-secondary" id="typeCancelBtn">Cancel</button>
-                </div>
-            </div>
-        </div>
     </div>
     </div>
 
