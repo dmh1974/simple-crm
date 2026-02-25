@@ -2128,7 +2128,7 @@ td {
     
     .action-buttons {
         min-width: 120px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         justify-content: center;
         gap: 6px;
     }
@@ -2511,7 +2511,7 @@ td {
     }
     
     .venue-actions {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
     }
     
     #venueMap {
