@@ -759,6 +759,8 @@ header p {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
     padding: 10px 0;
     border-bottom: 1px solid #4a5568;
     margin: 0;
@@ -770,6 +772,7 @@ header p {
 
 .popup-venue-info {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     margin-right: 10px;
@@ -806,6 +809,8 @@ header p {
 .popup-actions {
     display: flex;
     gap: 5px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
 }
 
 /* Popup action buttons - same colors/hover as table action-btn, smaller for popup */
@@ -1873,8 +1878,9 @@ td {
     
     /* Import Section */
     .import-section {
-        padding: 15px 10px;
+        padding: 15px 12px;
         margin-bottom: 15px;
+        border-radius: 0;
     }
     
     .import-section h2 {
@@ -1891,9 +1897,29 @@ td {
         font-size: 14px;
     }
     
+    /* Collapsible sections - edge to edge */
+    .collapsible-section {
+        margin-bottom: 15px;
+    }
+    
+    .collapsible-section .section-header.collapsible-header {
+        padding: 12px 12px;
+        border-radius: 0;
+    }
+    
+    .collapsible-section .section-content {
+        padding: 12px 12px;
+        border-radius: 0;
+    }
+    
+    .collapsible-section.collapsed .section-header {
+        border-radius: 0;
+    }
+    
     /* Kanban Section */
     .kanban-section {
-        margin-bottom: 20px;
+        margin-bottom: 15px;
+        border-radius: 0;
     }
     
     .kanban-section h3 {
@@ -1910,10 +1936,11 @@ td {
     .kanban-column {
         height: 400px;
         min-height: 400px;
+        border-radius: 0;
     }
     
     .kanban-header {
-        padding: 12px 15px;
+        padding: 12px 12px;
     }
     
     .kanban-header h4 {
@@ -1921,7 +1948,7 @@ td {
     }
     
     .kanban-content {
-        padding: 10px;
+        padding: 8px;
         height: calc(100% - 60px);
         min-height: 0;
         overflow-y: auto;
@@ -1955,7 +1982,8 @@ td {
     
     /* Map Section */
     .map-section {
-        margin-bottom: 20px;
+        margin-bottom: 15px;
+        border-radius: 0;
     }
     
     .map-section h3 {
@@ -1967,8 +1995,8 @@ td {
     .map-controls {
         flex-direction: column;
         gap: 10px;
-        margin-bottom: 15px;
-        padding: 10px;
+        margin-bottom: 12px;
+        padding: 8px 12px;
     }
     
     .map-controls label {
@@ -2002,19 +2030,20 @@ td {
     
     #venueMap {
         height: 600px;
-        border-radius: 8px;
+        border-radius: 0;
     }
     
     /* Table Section */
     .table-section {
-        margin-bottom: 20px;
+        margin-bottom: 15px;
+        border-radius: 0;
     }
     
     .table-header {
         flex-direction: column;
         gap: 15px;
         align-items: flex-start;
-        padding: 15px 10px;
+        padding: 12px 12px;
     }
     
     .table-title-section {
@@ -2043,9 +2072,9 @@ td {
     }
     
     /* Filters Section */
-    .filters-section {
-        padding: 15px 10px;
-        margin-bottom: 15px;
+    .table-section .filters-section {
+        padding: 12px 12px;
+        margin-bottom: 12px;
     }
     
     .filters-section h4 {
@@ -2092,14 +2121,23 @@ td {
         font-size: 12px;
     }
     
+    td.action-buttons {
+        min-width: 130px;
+        width: auto;
+    }
+    
     .action-buttons {
-        width: 80px;
+        min-width: 120px;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 6px;
     }
     
     .action-btn {
         width: 24px;
         height: 24px;
         font-size: 11px;
+        flex-shrink: 0;
     }
     
     /* Pagination */
@@ -2396,6 +2434,7 @@ td {
     .popup-actions {
         align-self: flex-end;
         gap: 4px;
+        flex-wrap: wrap;
     }
     
     .popup-actions .action-btn {
@@ -2419,7 +2458,12 @@ td {
 /* Extra Small Devices */
 @media (max-width: 480px) {
     .container {
-        padding: 5px;
+        padding: 0;
+    }
+    
+    .collapsible-section .section-header.collapsible-header,
+    .collapsible-section .section-content {
+        padding: 10px 12px;
     }
     
     header h1 {
@@ -2463,6 +2507,11 @@ td {
         width: 26px;
         height: 26px;
         font-size: 11px;
+        flex-shrink: 0;
+    }
+    
+    .venue-actions {
+        flex-wrap: wrap;
     }
     
     #venueMap {
@@ -2535,7 +2584,7 @@ td {
     
     .popup-venue-item {
         padding: 6px;
-        gap: 4px;
+        gap: 6px;
     }
     
     .venue-name {
