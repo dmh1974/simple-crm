@@ -226,6 +226,20 @@ class SimpleCRM {
         // Initialize kanban board
         this.updateKanbanBoard();
         
+        // Kanban column search: filter cards in each column by search term
+        const kanbanSearchPairs = [
+            ['canvasSearch', 'canvasContent'],
+            ['followUpSearch', 'followUpContent'],
+            ['bookedSearch', 'bookedContent'],
+            ['bookAgainSearch', 'bookAgainContent']
+        ];
+        kanbanSearchPairs.forEach(([searchId, contentId]) => {
+            const searchEl = document.getElementById(searchId);
+            const contentEl = document.getElementById(contentId);
+            if (searchEl && contentEl) {
+                searchEl.addEventListener('input', () => this.filterKanbanColumn(contentEl, searchEl.value.trim()));
+            }
+        });
     }
 
 
@@ -381,17 +395,22 @@ class SimpleCRM {
                         <ul style="text-align: left; margin: 5px 0; padding-left: 20px;">
                                 ${data.venues.map((venue, venueIndex) => {
                                     const venueName = venue.Venue || 'Unknown Venue';
+                                    const city = venue.City || '';
+                                    const state = venue.State || '';
+                                    const locationStr = [city, state].filter(Boolean).join(', ');
                                     const venueType = venue.Type || '';
                                     const venueTimeline = venue.Timeline || '';
                                     const venueDistance = this.getDistanceForVenue(venue);
+                                    const locationAndDistance = locationStr
+                                        ? (venueDistance !== '--' ? `${locationStr} (${venueDistance})` : locationStr)
+                                        : (venueDistance !== '--' ? `(${venueDistance})` : '');
                                     const globalIndex = this.venues.findIndex(v => v === venue);
                                     return `
                                         <li class="popup-venue-item">
                                             <div class="popup-venue-info">
                                                 <span class="venue-name">${venueName}</span>
-                                                ${venueType ? `<span class="venue-type">${venueType}</span>` : ''}
-                                                ${venueTimeline ? `<span class="venue-timeline">${venueTimeline}</span>` : ''}
-                                                ${venueDistance !== '--' ? `<span class="venue-distance">${venueDistance}</span>` : ''}
+                                                ${locationAndDistance ? `<span class="venue-location">${locationAndDistance}</span>` : ''}
+                                                ${(venueTimeline || venueType) ? `<span class="venue-timeline">${[venueTimeline, venueType].filter(Boolean).join(' · ')}</span>` : ''}
                                             </div>
                                             <div class="popup-actions">
                                                 <button class="action-btn edit-btn popup-edit-btn" data-venue-index="${globalIndex}" title="Edit">
@@ -406,11 +425,9 @@ class SimpleCRM {
                                                 <button class="action-btn delete-btn popup-delete-btn" data-venue-index="${globalIndex}" title="Delete">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
-                                                ${(!venue.Status || venue.Status.trim() === '') ? `
-                                                <button class="action-btn kanban-btn popup-kanban-btn" data-venue-index="${globalIndex}" title="Add to Kanban (CANVAS)">
-                                                    <i class="fas fa-tasks"></i>
+                                                <button class="action-btn move-next-btn popup-move-next-btn" data-venue-index="${globalIndex}" title="Move to next stage">
+                                                    <i class="fas fa-arrow-right"></i>
                                                 </button>
-                                                ` : ''}
                                             </div>
                                         </li>
                                     `;
@@ -1031,12 +1048,16 @@ class SimpleCRM {
             csvContent += row + '\n';
         });
 
-        // Create and download file
+        // Create and download file with date and time in filename
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10);
+        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-');
+        const filename = `crm_venues_${dateStr}_${timeStr}.tsv`;
         const blob = new Blob([csvContent], { type: 'text/tab-separated-values' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'crm_venues.tsv';
+        a.download = filename;
         a.click();
         window.URL.revokeObjectURL(url);
     }
@@ -1140,15 +1161,17 @@ class SimpleCRM {
             actionTd.appendChild(copyBtn);
             actionTd.appendChild(deleteBtn);
             
-            // Add kanban move button only if status is empty
-            if (!venue.Status || venue.Status.trim() === '') {
-                const kanbanBtn = document.createElement('button');
-                kanbanBtn.className = 'action-btn kanban-btn';
-                kanbanBtn.innerHTML = '<i class="fas fa-tasks"></i>';
-                kanbanBtn.title = 'Add to Kanban (CANVAS)';
-                kanbanBtn.addEventListener('click', () => this.addToKanban(venue, startIndex + index));
-                actionTd.appendChild(kanbanBtn);
-            }
+            // Single button: Move to next stage (if no status, goes to first stage CANVAS)
+            const stageBtn = document.createElement('button');
+            stageBtn.className = 'action-btn move-next-btn';
+            stageBtn.innerHTML = '<i class="fas fa-arrow-right"></i>';
+            stageBtn.title = 'Move to next stage';
+            stageBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.moveToNextStage(venue);
+            });
+            actionTd.appendChild(stageBtn);
             row.appendChild(actionTd);
             
             // Add data columns
@@ -1545,6 +1568,21 @@ class SimpleCRM {
             });
         });
 
+        // Add event listeners for move-to-next-stage buttons (when venue is in a kanban column)
+        const moveNextButtons = popup.getElement().querySelectorAll('.popup-move-next-btn');
+        moveNextButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const venueIndex = parseInt(button.dataset.venueIndex);
+                if (venueIndex >= 0 && venueIndex < this.venues.length) {
+                    const venue = this.venues[venueIndex];
+                    this.moveToNextStage(venue);
+                    popup.remove();
+                }
+            });
+        });
+
         // Add event listeners for kanban buttons
         const kanbanButtons = popup.getElement().querySelectorAll('.popup-kanban-btn');
         kanbanButtons.forEach(button => {
@@ -1729,51 +1767,39 @@ class SimpleCRM {
     }
 
     applyFilters() {
-        const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+        const searchEl = document.getElementById('searchFilter');
+        const searchFilter = (searchEl && searchEl.value || '').trim().toLowerCase();
         
-        // Perimeter filter (distance from reference location)
-        const perimeterActive = this.perimeterMiles > 0;
-        
-        // Early exit if no filters are applied
-        if (!perimeterActive && this.typeFilters.length === 0 && this.timelineFilters.length === 0 && this.statusFilters.length === 0 && !searchFilter) {
-            this.filteredVenues = [...this.venues];
-        } else {
-        this.filteredVenues = this.venues.filter(venue => {
-                // Perimeter filter - include only venues within perimeterMiles
-                const perimeterMatch = !perimeterActive || (() => {
-                    const dist = this.getDistanceNumeric(venue);
-                    return dist !== Infinity && dist <= this.perimeterMiles;
-                })();
-                
-                // Type filter
-                const venueTypeBlank = !venue.Type || String(venue.Type).trim() === '';
-                const typeMatch = this.typeFilters.length === 0 || 
-                    this.typeFilters.some(f => 
-                        f === 'Blank' ? venueTypeBlank : (venue.Type && venue.Type === f)
-                    );
-                
-                // Timeline filter
-                const venueTimelineBlank = !venue.Timeline || String(venue.Timeline).trim() === '';
-                const timelineMatch = this.timelineFilters.length === 0 || 
-                    this.timelineFilters.some(f => 
-                        f === 'Blank' ? venueTimelineBlank : (venue.Timeline && venue.Timeline === f)
-                    );
-                
-                // Status filter
-                const venueStatusBlank = !venue.Status || String(venue.Status).trim() === '';
-                const statusMatch = this.statusFilters.length === 0 || 
-                    this.statusFilters.some(f => 
-                        f === 'Blank' ? venueStatusBlank : (venue.Status && venue.Status === f)
-                    );
-                
-                // Search filter
-            const searchMatch = !searchFilter || 
-                Object.values(venue).some(value => 
+        // When search box has text: search across ALL venues, ignore type/timeline/status/perimeter filters
+        if (searchFilter) {
+            this.filteredVenues = this.venues.filter(venue =>
+                Object.values(venue).some(value =>
                     value && value.toString().toLowerCase().includes(searchFilter)
-                );
-            
-            return perimeterMatch && typeMatch && timelineMatch && statusMatch && searchMatch;
-        });
+                )
+            );
+        } else {
+            // No search text: apply perimeter, type, timeline, status filters as normal
+            const perimeterActive = this.perimeterMiles > 0;
+            if (!perimeterActive && this.typeFilters.length === 0 && this.timelineFilters.length === 0 && this.statusFilters.length === 0) {
+                this.filteredVenues = [...this.venues];
+            } else {
+                this.filteredVenues = this.venues.filter(venue => {
+                    const perimeterMatch = !perimeterActive || (() => {
+                        const dist = this.getDistanceNumeric(venue);
+                        return dist !== Infinity && dist <= this.perimeterMiles;
+                    })();
+                    const venueTypeBlank = !venue.Type || String(venue.Type).trim() === '';
+                    const typeMatch = this.typeFilters.length === 0 ||
+                        this.typeFilters.some(f => f === 'Blank' ? venueTypeBlank : (venue.Type && venue.Type === f));
+                    const venueTimelineBlank = !venue.Timeline || String(venue.Timeline).trim() === '';
+                    const timelineMatch = this.timelineFilters.length === 0 ||
+                        this.timelineFilters.some(f => f === 'Blank' ? venueTimelineBlank : (venue.Timeline && venue.Timeline === f));
+                    const venueStatusBlank = !venue.Status || String(venue.Status).trim() === '';
+                    const statusMatch = this.statusFilters.length === 0 ||
+                        this.statusFilters.some(f => f === 'Blank' ? venueStatusBlank : (venue.Status && venue.Status === f));
+                    return perimeterMatch && typeMatch && timelineMatch && statusMatch;
+                });
+            }
         }
         
         // Reset to first page when filtering
@@ -2051,11 +2077,11 @@ class SimpleCRM {
                 venue[input.dataset.field] = input.value;
             });
             
-            // Add the new venue to the arrays
+            // Add the new venue to the main array, then re-apply filters so filter state is preserved
             this.venues.push(venue);
-            this.filteredVenues = [...this.venues];
+            this.applyFilters();
             
-            // Go to the last page to show the new row
+            // Go to the last page to show the new row (if it matches filters)
             this.calculatePagination();
             this.currentPage = this.totalPages;
             
@@ -2082,6 +2108,9 @@ class SimpleCRM {
             this.venues[originalIndex] = { ...venue };
             }
         }
+        
+        // Re-apply filters so table reflects current filters (edited venue may drop out if it no longer matches)
+        this.applyFilters();
         
         // Re-sort if currently sorting by Last Updated
         if (this.sortColumn === 'Last Updated') {
@@ -2833,6 +2862,9 @@ class SimpleCRM {
         if (document.getElementById('timelineFilterText')) {
             this.updateFilterButtonText('timeline', this.timelineFilters);
         }
+        if (document.getElementById('statusFilterText')) {
+            this.updateFilterButtonText('status', this.statusFilters);
+        }
     }
 
     updateKanbanBoard() {
@@ -2865,18 +2897,35 @@ class SimpleCRM {
         bookedContent.innerHTML = '';
         bookAgainContent.innerHTML = '';
 
-        // Group venues by status, preserve order (no re-sorting - respects add order / table order)
+        // Group venues by status, sort by distance (closest first)
         const canvasVenues = this.venues.filter(v => (v.Status || '').includes('CANVAS'));
         const followUpVenues = this.venues.filter(v => (v.Status || '').includes('FOLLOW-UP'));
         const bookedVenues = this.venues.filter(v => (v.Status || '').includes('BOOKED'));
         const bookAgainVenues = this.venues.filter(v => (v.Status || '').includes('BOOK-AGAIN'));
 
-        [canvasVenues, followUpVenues, bookedVenues, bookAgainVenues].forEach((venueList, i) => {
+        const sortByDistanceClosestFirst = (a, b) => (this.getDistanceNumeric(a) - this.getDistanceNumeric(b));
+        [canvasVenues.sort(sortByDistanceClosestFirst), followUpVenues.sort(sortByDistanceClosestFirst), bookedVenues.sort(sortByDistanceClosestFirst), bookAgainVenues.sort(sortByDistanceClosestFirst)].forEach((venueList, i) => {
             const column = [canvasContent, followUpContent, bookedContent, bookAgainContent][i];
             venueList.forEach(venue => {
                 const card = this.createKanbanCard(venue);
                 if (card) column.appendChild(card);
             });
+        });
+        // Re-apply column search filters (in case user had typed before board refreshed)
+        ['canvasSearch', 'followUpSearch', 'bookedSearch', 'bookAgainSearch'].forEach((searchId, i) => {
+            const searchEl = document.getElementById(searchId);
+            const contentEl = [canvasContent, followUpContent, bookedContent, bookAgainContent][i];
+            if (searchEl && contentEl) this.filterKanbanColumn(contentEl, searchEl.value.trim());
+        });
+    }
+
+    filterKanbanColumn(contentEl, searchTerm) {
+        if (!contentEl) return;
+        const term = (searchTerm || '').toLowerCase();
+        const cards = contentEl.querySelectorAll('.kanban-venue-card');
+        cards.forEach(card => {
+            const text = (card.textContent || '').toLowerCase();
+            card.style.display = term === '' || text.includes(term) ? '' : 'none';
         });
     }
 
@@ -2898,13 +2947,14 @@ class SimpleCRM {
         const venueDistance = this.getDistanceForVenue(venue);
         const locationStr = [city, state].filter(Boolean).join(', ');
         
+        const locationAndDistance = locationStr
+            ? (venueDistance !== '--' ? `${locationStr} (${venueDistance})` : locationStr)
+            : (venueDistance !== '--' ? `(${venueDistance})` : '');
         card.innerHTML = `
             <div class="kanban-card-info">
                 <span class="venue-name">${venueName}</span>
-                ${locationStr ? `<span class="venue-location">${locationStr}</span>` : ''}
-                ${venueType ? `<span class="venue-type">${venueType}</span>` : ''}
-                ${venueTimeline ? `<span class="venue-timeline">${venueTimeline}</span>` : ''}
-                ${venueDistance !== '--' ? `<span class="venue-distance">${venueDistance}</span>` : ''}
+                ${locationAndDistance ? `<span class="venue-location">${locationAndDistance}</span>` : ''}
+                ${(venueTimeline || venueType) ? `<span class="venue-timeline">${[venueTimeline, venueType].filter(Boolean).join(' · ')}</span>` : ''}
             </div>
             <div class="venue-actions">
                 <button class="venue-action-btn edit-action" title="Edit">
@@ -2952,17 +3002,18 @@ class SimpleCRM {
     }
 
     moveToNextStage(venue) {
-        const currentStatus = venue.Status || '';
+        const raw = (venue.Status || '').trim();
+        const currentStatus = raw.toUpperCase();
         let newStatus = '';
-        
-        if (currentStatus.includes('CANVAS')) {
+        // No status = go to first stage (CANVAS). Pipeline: CANVAS -> FOLLOW-UP -> BOOKED -> BOOK-AGAIN -> (loop) CANVAS.
+        if (!currentStatus || currentStatus.includes('BOOK-AGAIN')) {
+            newStatus = 'CANVAS';
+        } else if (currentStatus.includes('CANVAS')) {
             newStatus = 'FOLLOW-UP';
         } else if (currentStatus.includes('FOLLOW-UP')) {
             newStatus = 'BOOKED';
         } else if (currentStatus.includes('BOOKED')) {
             newStatus = 'BOOK-AGAIN';
-        } else if (currentStatus.includes('BOOK-AGAIN')) {
-            newStatus = 'CANVAS'; // Loop back to start
         }
         
         if (newStatus) {
@@ -2973,12 +3024,8 @@ class SimpleCRM {
             // Update Last Updated timestamp when venue is modified
             venue['Last Updated'] = new Date().toISOString();
             
-            // Create changes description for history
-            const changes = [{
-                field: 'Status',
-                oldValue: currentStatus,
-                newValue: newStatus
-            }];
+            // Re-apply filters so table updates when status filter is active (venue may drop out of list)
+            this.applyFilters();
             
             this.updateKanbanBoard();
             

@@ -30,7 +30,7 @@ a:visited:hover {
 }
 
 .container {
-    max-width: 1400px;
+    max-width: 100%when ;
     margin: 0 auto;
     padding: 20px;
 }
@@ -561,9 +561,31 @@ header p {
     text-align: center;
 }
 
+.kanban-column-search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    margin: 0;
+    border: 1px solid #4a5568;
+    border-radius: 4px;
+    background: #2d2d2d;
+    color: #e1e8ed;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.kanban-column-search::placeholder {
+    color: #a0aec0;
+}
+
+.kanban-column-search:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
 .kanban-content {
     flex: 1;
-    padding: 10px;
+    padding: 6px;
     overflow-y: auto;
     min-height: 0;
 }
@@ -597,8 +619,8 @@ header p {
     background: #2d2d2d;
     border: 1px solid #4a5568;
     border-radius: 6px;
-    padding: 10px;
-    margin-bottom: 8px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     transition: all 0.3s ease;
     cursor: pointer;
@@ -611,39 +633,43 @@ header p {
 }
 
 .kanban-venue-card h5 {
-    margin: 0 0 8px 0;
+    margin: 0 0 4px 0;
     color: #e1e8ed;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
 }
 
 .kanban-card-info {
     display: flex;
     flex-direction: column;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     text-align: left;
+    gap: 1px;
 }
 
 .kanban-card-info .venue-name {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     color: #e1e8ed;
-    margin-bottom: 4px;
+    margin-bottom: 0;
+    line-height: 1.25;
 }
 
 .kanban-card-info .venue-location {
-    font-size: 12px;
+    font-size: 11px;
     color: #a0aec0;
-    margin-bottom: 4px;
+    margin-bottom: 0;
+    line-height: 1.25;
 }
 
 .kanban-card-info .venue-type,
 .kanban-card-info .venue-timeline,
 .kanban-card-info .venue-distance {
-    font-size: 11px;
+    font-size: 10px;
     color: #a0aec0;
     font-style: italic;
-    margin-bottom: 2px;
+    margin-bottom: 0;
+    line-height: 1.2;
 }
 
 .venue-location {
@@ -661,19 +687,19 @@ header p {
 
 .venue-actions {
     display: flex;
-    gap: 5px;
-    margin-top: 8px;
+    gap: 4px;
+    margin-top: 4px;
     justify-content: flex-end;
 }
 
 .venue-action-btn {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     padding: 0;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 10px;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
@@ -754,16 +780,16 @@ header p {
     scrollbar-color: #4a5568 #1a1a1a;
 }
 
-/* Popup venue items styling */
+/* Popup venue items styling - same layout as kanban cards */
 .popup-venue-item {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
     padding: 10px 0;
     border-bottom: 1px solid #4a5568;
     margin: 0;
+    text-align: left;
 }
 
 .popup-venue-item:last-child {
@@ -771,11 +797,10 @@ header p {
 }
 
 .popup-venue-info {
-    flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    margin-right: 10px;
+    gap: 1px;
 }
 
 .venue-name {
@@ -808,8 +833,9 @@ header p {
 
 .popup-actions {
     display: flex;
-    gap: 5px;
-    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+    justify-content: flex-end;
     flex-shrink: 0;
 }
 
@@ -1117,6 +1143,17 @@ td {
 }
 
 .kanban-btn:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.move-next-btn {
+    background: #28a745;
+    color: white;
+}
+
+.move-next-btn:hover {
     background: #218838;
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
@@ -1948,36 +1985,36 @@ td {
     }
     
     .kanban-content {
-        padding: 8px;
+        padding: 6px;
         height: calc(100% - 60px);
         min-height: 0;
         overflow-y: auto;
     }
     
     .kanban-venue-card {
-        padding: 12px;
-        margin-bottom: 8px;
-    }
-    
-    .kanban-venue-card h5 {
-        font-size: 14px;
+        padding: 6px 8px;
         margin-bottom: 6px;
     }
     
-    .venue-location, .venue-region {
-        font-size: 12px;
+    .kanban-venue-card h5 {
+        font-size: 13px;
         margin-bottom: 4px;
     }
     
+    .venue-location, .venue-region {
+        font-size: 11px;
+        margin-bottom: 0;
+    }
+    
     .venue-actions {
-        gap: 6px;
-        margin-top: 8px;
+        gap: 4px;
+        margin-top: 4px;
     }
     
     .venue-action-btn {
-        width: 28px;
-        height: 28px;
-        font-size: 12px;
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
     }
     
     /* Map Section */
@@ -2403,15 +2440,12 @@ td {
     }
     
     .popup-venue-item {
-        padding: 8px;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 6px;
+        padding: 8px 0;
+        gap: 4px;
     }
     
     .popup-venue-info {
-        margin-right: 0;
-        margin-bottom: 6px;
+        margin-bottom: 0;
     }
     
     .venue-name {
@@ -2432,9 +2466,9 @@ td {
     }
     
     .popup-actions {
-        align-self: flex-end;
         gap: 4px;
-        flex-wrap: wrap;
+        margin-top: 4px;
+        justify-content: flex-end;
     }
     
     .popup-actions .action-btn {
@@ -2492,21 +2526,22 @@ td {
     }
     
     .kanban-venue-card {
-        padding: 10px;
+        padding: 5px 6px;
+        margin-bottom: 5px;
     }
     
     .kanban-venue-card h5 {
-        font-size: 13px;
+        font-size: 12px;
     }
     
     .venue-location, .venue-region {
-        font-size: 11px;
+        font-size: 10px;
     }
     
     .venue-action-btn {
-        width: 26px;
-        height: 26px;
-        font-size: 11px;
+        width: 22px;
+        height: 22px;
+        font-size: 10px;
         flex-shrink: 0;
     }
     
