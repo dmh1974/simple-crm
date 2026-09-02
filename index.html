@@ -79,29 +79,6 @@
             </div>
         </div>
 
-        <div class="map-section collapsible-section" data-section="map">
-            <div class="section-header collapsible-header">
-                <span class="drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>
-                <h3>Map</h3>
-                <i class="fas fa-chevron-down toggle-icon"></i>
-            </div>
-            <div class="section-content">
-                <div class="map-controls">
-                <label for="minVenueFilter">Min venues:</label>
-                <input type="number" id="minVenueFilter" min="1" value="1" title="Show only locations with this many venues or more">
-                <button id="resetLocationBtn" class="btn btn-small btn-secondary" title="Reset map to default location and zoom">
-                    <i class="fas fa-home"></i>
-                    Reset Location
-                </button>
-                <div class="location-search-container">
-                    <input type="text" id="locationSearch" placeholder="Type city, state..." autocomplete="off">
-                    <div id="locationSearchResults" class="location-search-results"></div>
-                </div>
-                </div>
-                <div id="venueMap"></div>
-            </div>
-        </div>
-
         <div class="table-section collapsible-section" data-section="table">
             <div class="section-header collapsible-header">
                 <span class="drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>
@@ -163,6 +140,29 @@
                     </tbody>
                 </table>
                 </div>
+            </div>
+        </div>
+
+        <div class="map-section collapsible-section" data-section="map">
+            <div class="section-header collapsible-header">
+                <span class="drag-handle" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>
+                <h3>Map</h3>
+                <i class="fas fa-chevron-down toggle-icon"></i>
+            </div>
+            <div class="section-content">
+                <div class="map-controls">
+                <label for="minVenueFilter">Min venues:</label>
+                <input type="number" id="minVenueFilter" min="1" value="1" title="Show only locations with this many venues or more">
+                <button id="resetLocationBtn" class="btn btn-small btn-secondary" title="Reset map to default location and zoom">
+                    <i class="fas fa-home"></i>
+                    Reset Location
+                </button>
+                <div class="location-search-container">
+                    <input type="text" id="locationSearch" placeholder="Type city, state..." autocomplete="off">
+                    <div id="locationSearchResults" class="location-search-results"></div>
+                </div>
+                </div>
+                <div id="venueMap"></div>
             </div>
         </div>
 

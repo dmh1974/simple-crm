@@ -36,7 +36,7 @@ class SimpleCRM {
         this.collapsedSections = new Set();
         
         // Section order for drag-and-drop reordering
-        this.sectionOrder = ['kanban', 'map', 'table'];
+        this.sectionOrder = ['kanban', 'table', 'map'];
         
         // Map position properties
         this.mapCenter = [43.2994, -74.2179]; // Default center (New York State)
@@ -3266,7 +3266,7 @@ class SimpleCRM {
                 this.mapCenter = data.mapCenter || [43.2994, -74.2179];
                 this.mapZoom = data.mapZoom || 7;
                 this.collapsedSections = new Set(data.collapsedSections || []);
-                this.sectionOrder = data.sectionOrder && Array.isArray(data.sectionOrder) ? data.sectionOrder : ['kanban', 'map', 'table'];
+                this.sectionOrder = data.sectionOrder && Array.isArray(data.sectionOrder) ? data.sectionOrder : ['kanban', 'table', 'map'];
                 
                 // Set min venues and distance from input values from stored settings
                 const minVenueInput = document.getElementById('minVenueFilter');
