@@ -39,7 +39,7 @@ header {
     text-align: center;
     margin-bottom: 30px;
     padding: 20px;
-    background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+    background: #2d3748;
     color: white;
     border-radius: 10px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
@@ -522,7 +522,7 @@ header p {
 
 .kanban-board {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 20px;
     min-height: 400px;
 }
@@ -550,6 +550,11 @@ header p {
 .kanban-header h4 {
     margin: 0;
     font-size: 16px;
+}
+
+.kanban-header-next-year {
+    background: #4a5568;
+    color: white;
 }
 
 .venue-count {
@@ -632,6 +637,16 @@ header p {
     border-color: #667eea;
 }
 
+.kanban-venue-card-important {
+    border-color: #f6ad55;
+    box-shadow: 0 0 0 1px rgba(246, 173, 85, 0.35);
+}
+
+.kanban-venue-card-important:hover {
+    border-color: #ed8936;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3), 0 0 0 1px rgba(237, 137, 54, 0.45);
+}
+
 .kanban-venue-card h5 {
     margin: 0 0 4px 0;
     color: #e1e8ed;
@@ -670,6 +685,15 @@ header p {
     font-style: italic;
     margin-bottom: 0;
     line-height: 1.2;
+}
+
+.kanban-card-info .venue-notes {
+    font-size: 10px;
+    color: #cbd5e0;
+    margin-top: 2px;
+    line-height: 1.3;
+    white-space: pre-line;
+    word-break: break-word;
 }
 
 .venue-location {
@@ -743,6 +767,14 @@ header p {
     background: #218838;
 }
 
+.next-year-action {
+    background: #667eea;
+}
+
+.next-year-action:hover {
+    background: #5a6fd8;
+}
+
 /* Popup venue list container */
 .popup-venue-list {
     max-height: 250px;
@@ -807,6 +839,11 @@ header p {
     text-align: left;
     font-size: 13px;
     color: #f8f9fa;
+    margin-bottom: 2px;
+}
+
+.popup-venue-info .venue-status {
+    align-self: flex-start;
     margin-bottom: 2px;
 }
 
@@ -1045,6 +1082,18 @@ th {
 
 tr:hover {
     background-color: #2d2d2d;
+}
+
+tr.venue-row-important {
+    box-shadow: inset 4px 0 0 #f6ad55;
+}
+
+tr.venue-row-important td {
+    background-color: rgba(246, 173, 85, 0.08);
+}
+
+tr.venue-row-important:hover td {
+    background-color: rgba(246, 173, 85, 0.14);
 }
 
 td {
@@ -1467,6 +1516,15 @@ td {
 .status-book-again {
     background-color: #cce5ff;
     color: #004085;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-next-year {
+    background-color: #e4e8fd;
+    color: #3c366b;
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 12px;

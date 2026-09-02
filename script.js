@@ -163,7 +163,6 @@ class SimpleCRM {
         document.getElementById('addRowBtn').addEventListener('click', () => this.addNewRow());
         document.getElementById('toggleColumnsBtn').addEventListener('click', () => this.showColumnToggleModal());
         document.getElementById('resetLayoutBtn').addEventListener('click', () => this.resetTableLayout());
-        document.getElementById('clearDataBtn').addEventListener('click', () => this.clearAllData());
         
         // Edit modal controls
         document.getElementById('editModal').addEventListener('click', (e) => {
@@ -176,12 +175,7 @@ class SimpleCRM {
         document.getElementById('saveBtn').addEventListener('click', () => this.saveEdit());
         document.getElementById('cancelBtn').addEventListener('click', () => this.closeModal());
 
-        // Add Escape key listener for edit modal
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && document.getElementById('editModal').style.display === 'block') {
-                this.closeModal();
-            }
-        });
+        document.addEventListener('keydown', (e) => this.handleEscapeKey(e));
         
         // Edit venue tab functionality
         document.querySelectorAll('.edit-tab-btn').forEach(button => {
@@ -231,7 +225,8 @@ class SimpleCRM {
             ['canvasSearch', 'canvasContent'],
             ['followUpSearch', 'followUpContent'],
             ['bookedSearch', 'bookedContent'],
-            ['bookAgainSearch', 'bookAgainContent']
+            ['bookAgainSearch', 'bookAgainContent'],
+            ['nextYearSearch', 'nextYearContent']
         ];
         kanbanSearchPairs.forEach(([searchId, contentId]) => {
             const searchEl = document.getElementById(searchId);
@@ -400,6 +395,7 @@ class SimpleCRM {
                                     const locationStr = [city, state].filter(Boolean).join(', ');
                                     const venueType = venue.Type || '';
                                     const venueTimeline = venue.Timeline || '';
+                                    const venueStatus = venue.Status || '';
                                     const venueDistance = this.getDistanceForVenue(venue);
                                     const locationAndDistance = locationStr
                                         ? (venueDistance !== '--' ? `${locationStr} (${venueDistance})` : locationStr)
@@ -409,6 +405,7 @@ class SimpleCRM {
                                         <li class="popup-venue-item">
                                             <div class="popup-venue-info">
                                                 <span class="venue-name">${venueName}</span>
+                                                ${venueStatus ? `<span class="venue-status ${this.getStatusClass(venueStatus)}">${venueStatus}</span>` : ''}
                                                 ${locationAndDistance ? `<span class="venue-location">${locationAndDistance}</span>` : ''}
                                                 ${(venueTimeline || venueType) ? `<span class="venue-timeline">${[venueTimeline, venueType].filter(Boolean).join(' · ')}</span>` : ''}
                                             </div>
@@ -1035,16 +1032,24 @@ class SimpleCRM {
     }
 
     exportData() {
-        if (this.venues.length === 0) {
+        if (this.filteredVenues.length === 0) {
             alert('No data to export!');
             return;
         }
 
-        // Export only standard columns in fixed order
-        let csvContent = STANDARD_COLUMNS.join('\t') + '\n';
+        // Export standard columns plus distance from the reference location
+        const distanceHeader = this.defaultDistanceLocation;
+        const exportColumns = [distanceHeader, ...STANDARD_COLUMNS];
+        let csvContent = exportColumns.join('\t') + '\n';
         
-        this.venues.forEach(venue => {
-            const row = STANDARD_COLUMNS.map(header => (venue[header] || '')).join('\t');
+        this.filteredVenues.forEach(venue => {
+            const row = exportColumns.map(header => {
+                if (header === distanceHeader) {
+                    const miles = this.getDistanceNumeric(venue);
+                    return miles === Infinity ? '' : miles.toFixed(1);
+                }
+                return venue[header] || '';
+            }).join('\t');
             csvContent += row + '\n';
         });
 
@@ -1119,6 +1124,9 @@ class SimpleCRM {
         // Add data rows for current page using document fragment
         currentPageData.forEach((venue, index) => {
             const row = document.createElement('tr');
+            if (this.isImportantVenue(venue)) {
+                row.classList.add('venue-row-important');
+            }
             
             // Add action buttons first
             const actionTd = document.createElement('td');
@@ -1752,10 +1760,12 @@ class SimpleCRM {
     }
 
     getStatusClass(status) {
-        if (status.includes('CANVAS')) return 'status-canvas';
-        if (status.includes('FOLLOW-UP')) return 'status-follow-up';
-        if (status.includes('BOOKED')) return 'status-booked';
-        if (status.includes('BOOK-AGAIN')) return 'status-book-again';
+        const s = (status || '').toUpperCase();
+        if (s.includes('NEXT-YEAR')) return 'status-next-year';
+        if (s.includes('CANVAS')) return 'status-canvas';
+        if (s.includes('FOLLOW-UP')) return 'status-follow-up';
+        if (s.includes('BOOKED')) return 'status-booked';
+        if (s.includes('BOOK-AGAIN')) return 'status-book-again';
         return '';
     }
 
@@ -2445,41 +2455,6 @@ class SimpleCRM {
         this.saveToLocalStorage();
     }
 
-    clearAllData() {
-        if (!confirm('Are you sure you want to clear all data? This cannot be undone!')) return;
-        
-        this.venues = [];
-        this.filteredVenues = [];
-        this.headers = [...STANDARD_COLUMNS];
-        this.ensureDistanceHeader();
-        this.hiddenColumns.clear();
-        this.sortColumn = null;
-        this.sortDirection = 'asc';
-        this.currentPage = 1;
-        this.totalPages = 1;
-        this.typeFilters = [];
-        this.timelineFilters = [];
-        this.perimeterMiles = 2000;
-        this.minVenueCount = 1;
-        
-        const perimeterInput = document.getElementById('perimeterFilter');
-        if (perimeterInput) perimeterInput.value = '2000';
-        
-        this.updateTable();
-        this.updateFilterButtonTexts();
-        this.updateKanbanBoard(); // Update kanban board
-        this.updateMap(); // Update map after clearing data
-        this.saveToLocalStorage();
-        
-        // Clear textarea
-        document.getElementById('spreadsheetData').value = '';
-        
-        // Reset map to default position
-        if (this.map) {
-            this.map.setView(this.mapCenter, this.mapZoom);
-        }
-    }
-
     openModal() {
         document.getElementById('editModal').style.display = 'block';
     }
@@ -2505,6 +2480,61 @@ class SimpleCRM {
         // Clear file input and file name display
         document.getElementById('fileUpload').value = '';
         document.getElementById('fileName').textContent = '';
+    }
+
+    isElementVisible(element) {
+        return !!element && window.getComputedStyle(element).display !== 'none';
+    }
+
+    handleEscapeKey(event) {
+        if (event.key !== 'Escape') return;
+
+        const dynamicModals = Array.from(document.querySelectorAll('.column-toggle-modal, .contact-json-modal'))
+            .filter(modal => this.isElementVisible(modal));
+        if (dynamicModals.length > 0) {
+            const modal = dynamicModals[dynamicModals.length - 1];
+            if (modal.classList.contains('column-toggle-modal')) {
+                this.closeColumnToggleModal(modal);
+            } else {
+                this.closeContactJsonModal(modal);
+            }
+            event.preventDefault();
+            return;
+        }
+
+        const editModal = document.getElementById('editModal');
+        if (this.isElementVisible(editModal)) {
+            this.closeModal();
+            event.preventDefault();
+            return;
+        }
+
+        const importModal = document.getElementById('importModal');
+        if (this.isElementVisible(importModal)) {
+            this.closeImportModal();
+            event.preventDefault();
+            return;
+        }
+
+        for (const filterType of ['type', 'timeline', 'status']) {
+            const filterModal = document.getElementById(`${filterType}FilterModal`);
+            if (this.isElementVisible(filterModal)) {
+                this.closeFilterModal(filterType);
+                event.preventDefault();
+                return;
+            }
+        }
+
+        const locationSearchResults = document.getElementById('locationSearchResults');
+        if (this.isElementVisible(locationSearchResults)) {
+            this.hideLocationSearchResults();
+            event.preventDefault();
+            return;
+        }
+
+        if (this.map) {
+            this.map.closePopup();
+        }
     }
 
     initializeImportTabs() {
@@ -2800,9 +2830,10 @@ class SimpleCRM {
         
         // Reset to first page
         this.currentPage = 1;
-        
-        // Update table directly
-        this.updateTable();
+
+        this.sortColumn = 'Distance';
+        this.sortDirection = 'asc';
+        this.applyCurrentSort();
         
         // Update map
         this.updateMap();
@@ -2872,7 +2903,8 @@ class SimpleCRM {
         if (!document.getElementById('canvasContent') || 
             !document.getElementById('followUpContent') || 
             !document.getElementById('bookedContent') || 
-            !document.getElementById('bookAgainContent')) {
+            !document.getElementById('bookAgainContent') ||
+            !document.getElementById('nextYearContent')) {
             return; // Kanban board not loaded yet
         }
         
@@ -2886,8 +2918,9 @@ class SimpleCRM {
         const followUpContent = document.getElementById('followUpContent');
         const bookedContent = document.getElementById('bookedContent');
         const bookAgainContent = document.getElementById('bookAgainContent');
+        const nextYearContent = document.getElementById('nextYearContent');
         
-        if (!canvasContent || !followUpContent || !bookedContent || !bookAgainContent) {
+        if (!canvasContent || !followUpContent || !bookedContent || !bookAgainContent || !nextYearContent) {
             return; // Kanban board not loaded yet
         }
         
@@ -2896,25 +2929,30 @@ class SimpleCRM {
         followUpContent.innerHTML = '';
         bookedContent.innerHTML = '';
         bookAgainContent.innerHTML = '';
+        nextYearContent.innerHTML = '';
 
+        // NEXT-YEAR has its own column — keep it out of pipeline columns
+        const excludedFromKanban = (v) => ((v.Status || '').toUpperCase().includes('NEXT-YEAR'));
         // Group venues by status, sort by distance (closest first)
-        const canvasVenues = this.venues.filter(v => (v.Status || '').includes('CANVAS'));
-        const followUpVenues = this.venues.filter(v => (v.Status || '').includes('FOLLOW-UP'));
-        const bookedVenues = this.venues.filter(v => (v.Status || '').includes('BOOKED'));
-        const bookAgainVenues = this.venues.filter(v => (v.Status || '').includes('BOOK-AGAIN'));
+        const canvasVenues = this.venues.filter(v => !excludedFromKanban(v) && (v.Status || '').includes('CANVAS'));
+        const followUpVenues = this.venues.filter(v => !excludedFromKanban(v) && (v.Status || '').includes('FOLLOW-UP'));
+        const bookedVenues = this.venues.filter(v => !excludedFromKanban(v) && (v.Status || '').includes('BOOKED'));
+        const bookAgainVenues = this.venues.filter(v => !excludedFromKanban(v) && (v.Status || '').includes('BOOK-AGAIN'));
+        const nextYearVenues = this.venues.filter(v => excludedFromKanban(v));
 
         const sortByDistanceClosestFirst = (a, b) => (this.getDistanceNumeric(a) - this.getDistanceNumeric(b));
-        [canvasVenues.sort(sortByDistanceClosestFirst), followUpVenues.sort(sortByDistanceClosestFirst), bookedVenues.sort(sortByDistanceClosestFirst), bookAgainVenues.sort(sortByDistanceClosestFirst)].forEach((venueList, i) => {
-            const column = [canvasContent, followUpContent, bookedContent, bookAgainContent][i];
+        const columns = [canvasContent, followUpContent, bookedContent, bookAgainContent, nextYearContent];
+        [canvasVenues.sort(sortByDistanceClosestFirst), followUpVenues.sort(sortByDistanceClosestFirst), bookedVenues.sort(sortByDistanceClosestFirst), bookAgainVenues.sort(sortByDistanceClosestFirst), nextYearVenues.sort(sortByDistanceClosestFirst)].forEach((venueList, i) => {
+            const column = columns[i];
             venueList.forEach(venue => {
-                const card = this.createKanbanCard(venue);
+                const card = this.createKanbanCard(venue, { isFollowUpColumn: i === 1, isNextYearColumn: i === 4, showNotes: i === 0 || i === 1 });
                 if (card) column.appendChild(card);
             });
         });
         // Re-apply column search filters (in case user had typed before board refreshed)
-        ['canvasSearch', 'followUpSearch', 'bookedSearch', 'bookAgainSearch'].forEach((searchId, i) => {
+        ['canvasSearch', 'followUpSearch', 'bookedSearch', 'bookAgainSearch', 'nextYearSearch'].forEach((searchId, i) => {
             const searchEl = document.getElementById(searchId);
-            const contentEl = [canvasContent, followUpContent, bookedContent, bookAgainContent][i];
+            const contentEl = columns[i];
             if (searchEl && contentEl) this.filterKanbanColumn(contentEl, searchEl.value.trim());
         });
     }
@@ -2924,12 +2962,23 @@ class SimpleCRM {
         const term = (searchTerm || '').toLowerCase();
         const cards = contentEl.querySelectorAll('.kanban-venue-card');
         cards.forEach(card => {
-            const text = (card.textContent || '').toLowerCase();
+            const info = card.querySelector('.kanban-card-info');
+            const searchable = info
+                ? Array.from(info.querySelectorAll('.venue-name, .venue-location, .venue-timeline, .venue-notes'))
+                    .map(el => el.textContent)
+                    .join(' ')
+                : '';
+            const text = searchable.toLowerCase();
             card.style.display = term === '' || text.includes(term) ? '' : 'none';
         });
     }
 
-    createKanbanCard(venue) {
+    isImportantVenue(venue) {
+        return ((venue.Notes || '').slice(0, 2) === 'I!');
+    }
+
+    createKanbanCard(venue, options = {}) {
+        const { isFollowUpColumn = false, isNextYearColumn = false, showNotes = false } = options;
         // Check if kanban board is ready
         if (!document.getElementById('canvasContent')) {
             return null; // Kanban board not ready yet
@@ -2937,6 +2986,9 @@ class SimpleCRM {
         
         const card = document.createElement('div');
         card.className = 'kanban-venue-card';
+        if (!isNextYearColumn && this.isImportantVenue(venue)) {
+            card.classList.add('kanban-venue-card-important');
+        }
         card.dataset.venueId = this.venues.indexOf(venue);
         
         const venueName = venue.Venue || 'Unknown Venue';
@@ -2947,18 +2999,28 @@ class SimpleCRM {
         const venueDistance = this.getDistanceForVenue(venue);
         const locationStr = [city, state].filter(Boolean).join(', ');
         
-        const locationAndDistance = locationStr
-            ? (venueDistance !== '--' ? `${locationStr} (${venueDistance})` : locationStr)
-            : (venueDistance !== '--' ? `(${venueDistance})` : '');
+        const locationHtml = locationStr ? `<span class="venue-location">${locationStr}</span>` : '';
+        const distanceHtml = venueDistance !== '--'
+            ? `<span class="venue-distance">${locationStr ? ` (${venueDistance})` : `(${venueDistance})`}</span>`
+            : '';
+        const venueNotes = (venue.Notes || '').trim();
+        const nextYearBtnHtml = isFollowUpColumn
+            ? `<button class="venue-action-btn next-year-action" title="Set status to NEXT-YEAR (Next-Year column)">
+                    <i class="fas fa-calendar"></i>
+                </button>`
+            : '';
         card.innerHTML = `
             <div class="kanban-card-info">
                 <span class="venue-name">${venueName}</span>
-                ${locationAndDistance ? `<span class="venue-location">${locationAndDistance}</span>` : ''}
+                ${locationHtml}${distanceHtml}
                 ${(venueTimeline || venueType) ? `<span class="venue-timeline">${[venueTimeline, venueType].filter(Boolean).join(' · ')}</span>` : ''}
             </div>
             <div class="venue-actions">
                 <button class="venue-action-btn edit-action" title="Edit">
                     <i class="fas fa-edit"></i>
+                </button>
+                <button class="venue-action-btn search-btn" title="Google Search">
+                    <i class="fas fa-search"></i>
                 </button>
                 <button class="venue-action-btn copy-action" title="Copy">
                     <i class="fas fa-copy"></i>
@@ -2966,21 +3028,46 @@ class SimpleCRM {
                 <button class="venue-action-btn delete-action" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
+                ${nextYearBtnHtml}
                 <button class="venue-action-btn move-action" title="Move to next stage">
                     <i class="fas fa-arrow-right"></i>
                 </button>
             </div>
         `;
+
+        if (showNotes && venueNotes) {
+            const notesEl = document.createElement('span');
+            notesEl.className = 'venue-notes';
+            const notesDisplay = venueNotes.replace(/\r\n?/g, '\n');
+            notesEl.textContent = notesDisplay;
+            notesEl.title = notesDisplay;
+            card.querySelector('.kanban-card-info').appendChild(notesEl);
+        }
         
         // Add event listeners
         const editBtn = card.querySelector('.edit-action');
+        const searchBtn = card.querySelector('.search-btn');
         const copyBtn = card.querySelector('.copy-action');
         const deleteBtn = card.querySelector('.delete-action');
         const moveBtn = card.querySelector('.move-action');
+        const nextYearBtn = card.querySelector('.next-year-action');
         
         editBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.editKanbanVenue(venue);
+        });
+
+        searchBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const venueName = (venue.Venue || '').trim();
+            const city = (venue.City || '').trim();
+            const state = (venue.State || '').trim();
+            const query = city && state
+                ? `${venueName} ${city}, ${state}`.trim()
+                : [venueName, city, state].filter(Boolean).join(' ');
+            if (query) {
+                window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank', 'noopener,noreferrer');
+            }
         });
         
         copyBtn.addEventListener('click', (e) => {
@@ -2997,16 +3084,52 @@ class SimpleCRM {
             e.stopPropagation();
             this.moveToNextStage(venue);
         });
+
+        if (nextYearBtn) {
+            nextYearBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.moveVenueToNextYear(venue);
+            });
+        }
         
         return card;
+    }
+
+    syncUIAfterVenueStatusChange() {
+        this.applyFilters();
+        this.updateKanbanBoard();
+        if (this.sortColumn === 'Last Updated') {
+            this.filteredVenues.sort((a, b) => {
+                let aVal = a['Last Updated'] || '';
+                let bVal = b['Last Updated'] || '';
+                if (aVal && bVal) {
+                    aVal = new Date(aVal);
+                    bVal = new Date(bVal);
+                }
+                if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+            this.updateTable();
+        } else {
+            this.updateTable();
+        }
+        this.updateMap();
+        this.saveToLocalStorage();
+    }
+
+    moveVenueToNextYear(venue) {
+        venue.Status = 'NEXT-YEAR';
+        venue['Last Updated'] = new Date().toISOString();
+        this.syncUIAfterVenueStatusChange();
     }
 
     moveToNextStage(venue) {
         const raw = (venue.Status || '').trim();
         const currentStatus = raw.toUpperCase();
         let newStatus = '';
-        // No status = go to first stage (CANVAS). Pipeline: CANVAS -> FOLLOW-UP -> BOOKED -> BOOK-AGAIN -> (loop) CANVAS.
-        if (!currentStatus || currentStatus.includes('BOOK-AGAIN')) {
+        // No status or NEXT-YEAR = go to first stage (CANVAS). Pipeline: CANVAS -> FOLLOW-UP -> BOOKED -> BOOK-AGAIN -> (loop) CANVAS.
+        if (!currentStatus || currentStatus.includes('BOOK-AGAIN') || currentStatus.includes('NEXT-YEAR')) {
             newStatus = 'CANVAS';
         } else if (currentStatus.includes('CANVAS')) {
             newStatus = 'FOLLOW-UP';
@@ -3017,42 +3140,9 @@ class SimpleCRM {
         }
         
         if (newStatus) {
-            // Store original status for history tracking
-            const originalVenue = { ...venue };
-            
             venue.Status = newStatus;
-            // Update Last Updated timestamp when venue is modified
             venue['Last Updated'] = new Date().toISOString();
-            
-            // Re-apply filters so table updates when status filter is active (venue may drop out of list)
-            this.applyFilters();
-            
-            this.updateKanbanBoard();
-            
-            // Re-sort if currently sorting by Last Updated
-            if (this.sortColumn === 'Last Updated') {
-                // Preserve the current sort direction and re-sort
-                this.filteredVenues.sort((a, b) => {
-                    let aVal = a['Last Updated'] || '';
-                    let bVal = b['Last Updated'] || '';
-                    
-                    // Handle date comparison
-                    if (aVal && bVal) {
-                        aVal = new Date(aVal);
-                        bVal = new Date(bVal);
-                    }
-                    
-                    if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
-                    if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
-                    return 0;
-                });
-                this.updateTable();
-            } else {
-                this.updateTable();
-            }
-            
-            this.updateMap();
-            this.saveToLocalStorage();
+            this.syncUIAfterVenueStatusChange();
         }
     }
 
@@ -3062,13 +3152,15 @@ class SimpleCRM {
         const followUpContent = document.getElementById('followUpContent');
         const bookedContent = document.getElementById('bookedContent');
         const bookAgainContent = document.getElementById('bookAgainContent');
+        const nextYearContent = document.getElementById('nextYearContent');
         const canvasCount = document.getElementById('canvasCount');
         const followUpCount = document.getElementById('followUpCount');
         const bookedCount = document.getElementById('bookedCount');
         const bookAgainCount = document.getElementById('bookAgainCount');
+        const nextYearCount = document.getElementById('nextYearCount');
         
-        if (!canvasContent || !followUpContent || !bookedContent || !bookAgainContent ||
-            !canvasCount || !followUpCount || !bookedCount || !bookAgainCount) {
+        if (!canvasContent || !followUpContent || !bookedContent || !bookAgainContent || !nextYearContent ||
+            !canvasCount || !followUpCount || !bookedCount || !bookAgainCount || !nextYearCount) {
             return; // Kanban board not ready yet
         }
         
@@ -3076,11 +3168,13 @@ class SimpleCRM {
         const followUpCountValue = followUpContent.children.length;
         const bookedCountValue = bookedContent.children.length;
         const bookAgainCountValue = bookAgainContent.children.length;
+        const nextYearCountValue = nextYearContent.children.length;
         
         canvasCount.textContent = canvasCountValue;
         followUpCount.textContent = followUpCountValue;
         bookedCount.textContent = bookedCountValue;
         bookAgainCount.textContent = bookAgainCountValue;
+        nextYearCount.textContent = nextYearCountValue;
         
     }
 

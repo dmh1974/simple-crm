@@ -10593,6 +10593,7 @@ US,New York,East Quogue,40.84066,-72.58148
 US,New York,East Rochester,43.10867,-77.4875
 US,New York,East Rockaway,40.64205,-73.66957
 US,New York,East Setauket,40.94149,-73.10594
+US,New York,Setauket,40.94787,-73.11122
 US,New York,East Shoreham,40.94482,-72.87955
 US,New York,East Syracuse,43.06534,-76.07853
 US,New York,East Tremont,40.84538,-73.89097
@@ -16547,6 +16548,7 @@ US,Maryland,Oxon Hill-Glassmanor,38.79615,-76.97499
 US,Maryland,Paramount-Long Meadow,39.68042,-77.6929
 US,New York,Plattsburgh West,44.68315,-73.50295
 US,Pennsylvania,Pymatuning Central,41.58546,-80.4796
+US,New York,Remsen,43.32701,-75.18683
 US,New York,Remsenburg-Speonk,40.82642,-72.69673
 US,Delaware,Rising Sun-Lebanon,39.09977,-75.50488
 US,New York,Rosendale Village,41.85038,-74.07379
@@ -17597,4 +17599,11 @@ US,New Jersey,Wildwoods,38.9890,-74.8204
 US,Pennsylvania,Bethel,40.4737,-76.2916
 US,Pennsylvania,Conneaut Lake,41.6034,-80.3053
 US,Pennsylvania,Springs,39.7315,-79.1467
-US,Vermont,Tunbridge,43.9006,-72.4876`
+US,Vermont,Tunbridge,43.9006,-72.4876
+US,New York,Annandale-on-Hudson,41.99703,-73.91125
+US,New York,Cherry Valley,42.8092,-74.7574
+US,New York,Pine Hill,42.1126,-74.4782
+US,New York,Halfmoon,42.8601,-73.7290
+US,New York,Rhinecliff,41.9268,-73.9454
+US,New York,Pine Island,41.2943,-74.4446
+US,New York,Morris,42.5487,-75.2452`
