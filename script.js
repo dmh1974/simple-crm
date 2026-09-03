@@ -1060,8 +1060,12 @@ class SimpleCRM {
             return;
         }
 
-        // Export standard columns plus Distance
-        const exportColumns = ['Distance', ...STANDARD_COLUMNS];
+        const exportColumns = this.headers.filter(header => !this.hiddenColumns.has(header));
+        if (exportColumns.length === 0) {
+            alert('No visible columns to export!');
+            return;
+        }
+
         let csvContent = exportColumns.join('\t') + '\n';
         
         this.filteredVenues.forEach(venue => {
