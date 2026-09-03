@@ -1208,6 +1208,46 @@ td {
     box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
 }
 
+.stage-picker-menu {
+    position: fixed;
+    z-index: 10000;
+    background: #2d3748;
+    border: 1px solid #4a5568;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    padding: 4px 0;
+    min-width: 130px;
+}
+
+.stage-picker-item {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: #e2e8f0;
+    text-align: left;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.stage-picker-item:hover:not(:disabled) {
+    background: #4a5568;
+}
+
+.stage-picker-item.current,
+.stage-picker-item:disabled {
+    color: #667eea;
+    font-weight: 600;
+    cursor: default;
+}
+
+.stage-picker-item.current:hover,
+.stage-picker-item:disabled:hover {
+    background: transparent;
+}
+
 .delete-btn {
     background: #dc3545;
     color: white;

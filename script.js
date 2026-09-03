@@ -3,6 +3,14 @@
 // Standard columns for import/export - only these columns are used
 const STANDARD_COLUMNS = ['Type', 'Venue', 'City', 'State', 'Status', 'Timeline', 'Deadline', 'Contact', 'Phone', 'Email', 'Website', 'Notes'];
 
+const KANBAN_STAGES = [
+    { status: 'CANVAS', label: 'Canvas' },
+    { status: 'FOLLOW-UP', label: 'Follow-Up' },
+    { status: 'BOOKED', label: 'Booked' },
+    { status: 'BOOK-AGAIN', label: 'Book Again' },
+    { status: 'NEXT-YEAR', label: 'Next Year' }
+];
+
 class SimpleCRM {
     constructor() {
         this.venues = [];
@@ -422,7 +430,7 @@ class SimpleCRM {
                                                 <button class="action-btn delete-btn popup-delete-btn" data-venue-index="${globalIndex}" title="Delete">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
-                                                <button class="action-btn move-next-btn popup-move-next-btn" data-venue-index="${globalIndex}" title="Move to next stage">
+                                                <button class="action-btn move-next-btn popup-move-next-btn" data-venue-index="${globalIndex}" title="Move to next stage (hover or long-press to choose stage)">
                                                     <i class="fas fa-arrow-right"></i>
                                                 </button>
                                             </div>
@@ -1173,12 +1181,7 @@ class SimpleCRM {
             const stageBtn = document.createElement('button');
             stageBtn.className = 'action-btn move-next-btn';
             stageBtn.innerHTML = '<i class="fas fa-arrow-right"></i>';
-            stageBtn.title = 'Move to next stage';
-            stageBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                this.moveToNextStage(venue);
-            });
+            this.setupStageMoveButton(stageBtn, venue);
             actionTd.appendChild(stageBtn);
             row.appendChild(actionTd);
             
@@ -1579,16 +1582,13 @@ class SimpleCRM {
         // Add event listeners for move-to-next-stage buttons (when venue is in a kanban column)
         const moveNextButtons = popup.getElement().querySelectorAll('.popup-move-next-btn');
         moveNextButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const venueIndex = parseInt(button.dataset.venueIndex);
-                if (venueIndex >= 0 && venueIndex < this.venues.length) {
-                    const venue = this.venues[venueIndex];
-                    this.moveToNextStage(venue);
-                    popup.remove();
-                }
-            });
+            const venueIndex = parseInt(button.dataset.venueIndex);
+            if (venueIndex >= 0 && venueIndex < this.venues.length) {
+                const venue = this.venues[venueIndex];
+                this.setupStageMoveButton(button, venue, {
+                    onAfterMove: () => popup.remove()
+                });
+            }
         });
 
         // Add event listeners for kanban buttons
@@ -3029,7 +3029,7 @@ class SimpleCRM {
                     <i class="fas fa-trash"></i>
                 </button>
                 ${nextYearBtnHtml}
-                <button class="venue-action-btn move-action" title="Move to next stage">
+                <button class="venue-action-btn move-action" title="Move to next stage (hover or long-press to choose stage)">
                     <i class="fas fa-arrow-right"></i>
                 </button>
             </div>
@@ -3080,10 +3080,7 @@ class SimpleCRM {
             this.deleteKanbanVenue(venue);
         });
         
-        moveBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.moveToNextStage(venue);
-        });
+        this.setupStageMoveButton(moveBtn, venue);
 
         if (nextYearBtn) {
             nextYearBtn.addEventListener('click', (e) => {
@@ -3118,10 +3115,187 @@ class SimpleCRM {
         this.saveToLocalStorage();
     }
 
-    moveVenueToNextYear(venue) {
-        venue.Status = 'NEXT-YEAR';
+    isVenueAtStage(venue, stageStatus) {
+        const current = (venue.Status || '').trim().toUpperCase();
+        return current.includes(stageStatus);
+    }
+
+    closeStagePickerMenu() {
+        if (this._stagePickerMenu) {
+            this._stagePickerMenu.remove();
+            this._stagePickerMenu = null;
+        }
+        if (this._stagePickerHoverCleanup) {
+            this._stagePickerHoverCleanup();
+            this._stagePickerHoverCleanup = null;
+        }
+    }
+
+    showStagePickerMenu(anchorEl, venue, options = {}) {
+        const { onSelect } = options;
+        this.closeStagePickerMenu();
+
+        const menu = document.createElement('div');
+        menu.className = 'stage-picker-menu';
+        menu.setAttribute('role', 'menu');
+
+        KANBAN_STAGES.forEach(stage => {
+            const isCurrent = this.isVenueAtStage(venue, stage.status);
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'stage-picker-item' + (isCurrent ? ' current' : '');
+            item.setAttribute('role', 'menuitem');
+            item.textContent = stage.label;
+            if (isCurrent) {
+                item.disabled = true;
+            } else {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.closeStagePickerMenu();
+                    if (onSelect) onSelect(stage.status);
+                });
+            }
+            menu.appendChild(item);
+        });
+
+        document.body.appendChild(menu);
+
+        const rect = anchorEl.getBoundingClientRect();
+        const menuRect = menu.getBoundingClientRect();
+        let top = rect.top - menuRect.height - 4;
+        let left = rect.left;
+
+        if (top < 8) {
+            top = rect.bottom + 4;
+        }
+        if (left + menuRect.width > window.innerWidth - 8) {
+            left = window.innerWidth - menuRect.width - 8;
+        }
+        if (left < 8) left = 8;
+
+        menu.style.top = `${top}px`;
+        menu.style.left = `${left}px`;
+
+        let closeTimer = null;
+        const scheduleClose = () => {
+            closeTimer = setTimeout(() => this.closeStagePickerMenu(), 200);
+        };
+        const cancelClose = () => {
+            if (closeTimer) {
+                clearTimeout(closeTimer);
+                closeTimer = null;
+            }
+        };
+
+        const onEnter = () => cancelClose();
+        const onLeave = () => scheduleClose();
+
+        anchorEl.addEventListener('mouseenter', onEnter);
+        anchorEl.addEventListener('mouseleave', onLeave);
+        menu.addEventListener('mouseenter', onEnter);
+        menu.addEventListener('mouseleave', onLeave);
+
+        const onOutsidePointer = (e) => {
+            if (!menu.contains(e.target) && !anchorEl.contains(e.target)) {
+                this.closeStagePickerMenu();
+            }
+        };
+        const onScroll = () => this.closeStagePickerMenu();
+
+        setTimeout(() => {
+            document.addEventListener('mousedown', onOutsidePointer);
+            document.addEventListener('touchstart', onOutsidePointer);
+        }, 0);
+        window.addEventListener('scroll', onScroll, true);
+
+        this._stagePickerHoverCleanup = () => {
+            cancelClose();
+            anchorEl.removeEventListener('mouseenter', onEnter);
+            anchorEl.removeEventListener('mouseleave', onLeave);
+            menu.removeEventListener('mouseenter', onEnter);
+            menu.removeEventListener('mouseleave', onLeave);
+            document.removeEventListener('mousedown', onOutsidePointer);
+            document.removeEventListener('touchstart', onOutsidePointer);
+            window.removeEventListener('scroll', onScroll, true);
+        };
+
+        this._stagePickerMenu = menu;
+    }
+
+    setupStageMoveButton(button, venue, options = {}) {
+        const { onAfterMove } = options;
+        let longPressTimer = null;
+        let suppressNextClick = false;
+        let hoverTimer = null;
+        const LONG_PRESS_MS = 500;
+        const HOVER_DELAY_MS = 200;
+
+        const afterMove = () => {
+            if (onAfterMove) onAfterMove();
+        };
+
+        const openMenu = () => {
+            this.showStagePickerMenu(button, venue, {
+                onSelect: (status) => {
+                    this.moveVenueToStage(venue, status);
+                    afterMove();
+                }
+            });
+        };
+
+        button.title = 'Move to next stage (hover or long-press to choose stage)';
+
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (suppressNextClick) {
+                suppressNextClick = false;
+                return;
+            }
+            this.closeStagePickerMenu();
+            this.moveToNextStage(venue);
+            afterMove();
+        });
+
+        button.addEventListener('mouseenter', () => {
+            hoverTimer = setTimeout(openMenu, HOVER_DELAY_MS);
+        });
+        button.addEventListener('mouseleave', () => {
+            if (hoverTimer) {
+                clearTimeout(hoverTimer);
+                hoverTimer = null;
+            }
+        });
+
+        button.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+            suppressNextClick = false;
+            longPressTimer = setTimeout(() => {
+                suppressNextClick = true;
+                openMenu();
+            }, LONG_PRESS_MS);
+        }, { passive: true });
+
+        const clearLongPress = () => {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+        };
+        button.addEventListener('touchend', clearLongPress);
+        button.addEventListener('touchcancel', clearLongPress);
+        button.addEventListener('touchmove', clearLongPress);
+    }
+
+    moveVenueToStage(venue, status) {
+        venue.Status = status;
         venue['Last Updated'] = new Date().toISOString();
         this.syncUIAfterVenueStatusChange();
+    }
+
+    moveVenueToNextYear(venue) {
+        this.moveVenueToStage(venue, 'NEXT-YEAR');
     }
 
     moveToNextStage(venue) {
@@ -3140,9 +3314,7 @@ class SimpleCRM {
         }
         
         if (newStatus) {
-            venue.Status = newStatus;
-            venue['Last Updated'] = new Date().toISOString();
-            this.syncUIAfterVenueStatusChange();
+            this.moveVenueToStage(venue, newStatus);
         }
     }
 
