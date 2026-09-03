@@ -60,6 +60,7 @@ class SimpleCRM {
         
         this.loadGeoData();
         this.loadFromLocalStorage();
+        this.loadDefaultTsv();
         this.initializeMap();
         this.initializeEventListeners();
         
@@ -880,77 +881,91 @@ class SimpleCRM {
         }
 
         try {
-            const lines = data.split('\n');
-            if (lines.length < 2) {
-                alert('Data must have at least a header row and one data row!');
-                return;
-            }
+            const result = this.parseAndImportTsv(data);
+            if (!result) return;
 
-            // Use standard columns - fixed order: Type, Venue, City, State, Status, Timeline, Deadline, Contact, Phone, Email, Website, Notes
-            if (this.headers.length === 0) {
-                this.headers = [...STANDARD_COLUMNS];
-                this.ensureDistanceHeader();
-            }
-            
-            // Parse data rows - map by position to STANDARD_COLUMNS (col 0->Type, col 1->Venue, col 2->City, etc.)
-            const newVenues = [];
-            let importedCount = 0;
-            let duplicateCount = 0;
-            
-            for (let i = 1; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (line) {
-                    const values = line.split('\t');
-                    const venue = {};
-                    
-                    STANDARD_COLUMNS.forEach((col, j) => {
-                        venue[col] = (values[j] || '').trim();
-                    });
-                    
-                    // Set Last Updated timestamp for imported venues
-                    venue['Last Updated'] = new Date().toISOString();
-                    
-                    // Check if this venue already exists (by Venue, City, State combination)
-                    if (!this.isDuplicateVenue(venue)) {
-                        newVenues.push(venue);
-                        importedCount++;
-                    } else {
-                        duplicateCount++;
-                    }
-                }
-            }
-
-            // Add new venues to existing data
-            this.venues = [...this.venues, ...newVenues];
-            this.filteredVenues = [...this.venues];
-            
-            this.updateTable();
-            this.updateFilterButtonTexts();
-            
-            // Force a refresh of the table to ensure proper column widths
-            setTimeout(() => {
-                this.updateTable();
-                this.updateKanbanBoard(); // Update kanban board
-                this.updateMap(); // Update map after table refresh
-            }, 100);
-            
-            this.saveToLocalStorage();
-            
             document.getElementById('spreadsheetData').value = '';
-            
-            // Show detailed import results
-            let message = `Successfully imported ${importedCount} new venues!`;
-            if (duplicateCount > 0) {
-                message += `\n\n${duplicateCount} duplicate venues were skipped (based on Venue + City + State combination).`;
+
+            let message = `Successfully imported ${result.importedCount} new venues!`;
+            if (result.duplicateCount > 0) {
+                message += `\n\n${result.duplicateCount} duplicate venues were skipped (based on Venue + City + State combination).`;
             }
             if (this.venues.length > 0) {
                 message += `\n\nTotal venues in database: ${this.venues.length}`;
             }
-            
+
             alert(message);
-            
         } catch (error) {
             alert('Error importing data: ' + error.message);
+        }
+    }
+
+    parseAndImportTsv(data, options = {}) {
+        const { silent = false } = options;
+        const lines = data.split('\n');
+        if (lines.length < 2) {
+            if (!silent) alert('Data must have at least a header row and one data row!');
+            return null;
+        }
+
+        const headerCells = lines[0].split('\t').map(cell => cell.trim());
+        const colOffset = (headerCells[0] === 'Distance' ||
+            (headerCells[0] !== 'Type' && headerCells[1] === 'Type')) ? 1 : 0;
+
+        if (this.headers.length === 0) {
+            this.headers = [...STANDARD_COLUMNS];
+            this.ensureDistanceHeader();
+        }
+
+        const newVenues = [];
+        let importedCount = 0;
+        let duplicateCount = 0;
+
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            const values = line.split('\t');
+            const venue = {};
+
+            STANDARD_COLUMNS.forEach((col, j) => {
+                venue[col] = (values[j + colOffset] || '').trim();
+            });
+
+            venue['Last Updated'] = new Date().toISOString();
+
+            if (!this.isDuplicateVenue(venue)) {
+                newVenues.push(venue);
+                importedCount++;
+            } else {
+                duplicateCount++;
+            }
+        }
+
+        this.venues = [...this.venues, ...newVenues];
+
+        if (importedCount > 0) {
+            this.applyFilters();
+            this.updateFilterButtonTexts();
+            setTimeout(() => this.updateKanbanBoard(), 100);
+        }
+
+        this.saveToLocalStorage();
+
+        return { importedCount, duplicateCount };
+    }
+
+    async loadDefaultTsv() {
+        if (this.venues.length > 0) return;
+
+        try {
+            const response = await fetch('default.tsv');
+            if (!response.ok) return;
+
+            const data = await response.text();
+            this.parseAndImportTsv(data, { silent: true });
+        } catch (error) {
+            console.warn('Could not load default.tsv:', error);
         }
     }
 
@@ -1045,14 +1060,13 @@ class SimpleCRM {
             return;
         }
 
-        // Export standard columns plus distance from the reference location
-        const distanceHeader = this.defaultDistanceLocation;
-        const exportColumns = [distanceHeader, ...STANDARD_COLUMNS];
+        // Export standard columns plus Distance
+        const exportColumns = ['Distance', ...STANDARD_COLUMNS];
         let csvContent = exportColumns.join('\t') + '\n';
         
         this.filteredVenues.forEach(venue => {
             const row = exportColumns.map(header => {
-                if (header === distanceHeader) {
+                if (header === 'Distance') {
                     const miles = this.getDistanceNumeric(venue);
                     return miles === Infinity ? '' : miles.toFixed(1);
                 }
