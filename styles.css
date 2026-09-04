@@ -266,6 +266,24 @@ header p {
     margin-right: 6px;
 }
 
+.map-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+    color: #e1e8ed;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.map-checkbox-label input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+    accent-color: #667eea;
+}
+
 .location-search-container {
     position: relative;
     display: flex;
@@ -537,7 +555,6 @@ header p {
 }
 
 .kanban-header {
-    background: #2d3748;
     color: white;
     padding: 15px;
     border-radius: 6px 6px 0 0;
@@ -552,9 +569,24 @@ header p {
     font-size: 16px;
 }
 
+.kanban-header-canvas {
+    background: #e53e3e;
+}
+
+.kanban-header-follow-up {
+    background: #dd6b20;
+}
+
+.kanban-header-booked {
+    background: #38a169;
+}
+
+.kanban-header-book-again {
+    background: #3182ce;
+}
+
 .kanban-header-next-year {
-    background: #4a5568;
-    color: white;
+    background: #b83280;
 }
 
 .venue-count {

@@ -22,7 +22,7 @@
             <div class="section-content">
                 <div class="kanban-board">
                 <div class="kanban-column">
-                    <div class="kanban-header">
+                    <div class="kanban-header kanban-header-canvas">
                         <h4>Canvas</h4>
                         <span class="venue-count" id="canvasCount">0</span>
                     </div>
@@ -33,7 +33,7 @@
                 </div>
                 
                 <div class="kanban-column">
-                    <div class="kanban-header">
+                    <div class="kanban-header kanban-header-follow-up">
                         <h4>Follow-Up</h4>
                         <span class="venue-count" id="followUpCount">0</span>
                     </div>
@@ -44,7 +44,7 @@
                 </div>
                 
                 <div class="kanban-column">
-                    <div class="kanban-header">
+                    <div class="kanban-header kanban-header-booked">
                         <h4>Booked</h4>
                         <span class="venue-count" id="bookedCount">0</span>
                     </div>
@@ -55,7 +55,7 @@
                 </div>
                 
                 <div class="kanban-column">
-                    <div class="kanban-header">
+                    <div class="kanban-header kanban-header-book-again">
                         <h4>Book Again</h4>
                         <span class="venue-count" id="bookAgainCount">0</span>
                     </div>
@@ -153,6 +153,10 @@
                 <div class="map-controls">
                 <label for="minVenueFilter">Min venues:</label>
                 <input type="number" id="minVenueFilter" min="1" value="1" title="Show only locations with this many venues or more">
+                <label class="map-checkbox-label" for="separateByStatus">
+                    <input type="checkbox" id="separateByStatus">
+                    Separate by Status
+                </label>
                 <button id="resetLocationBtn" class="btn btn-small btn-secondary" title="Reset map to default location and zoom">
                     <i class="fas fa-home"></i>
                     Reset Location

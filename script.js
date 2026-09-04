@@ -50,6 +50,9 @@ class SimpleCRM {
         this.mapCenter = [43.2994, -74.2179]; // Default center (New York State)
         this.mapZoom = 7; // Default zoom level
         
+        // Map status separation
+        this.separateByStatus = false;
+
         // Distance calculation - default reference location
         this.defaultDistanceLocation = 'Saranac Lake, NY';
         this.perimeterMiles = 2000; // Filter venues within this distance (0 = no limit)
@@ -109,8 +112,18 @@ class SimpleCRM {
             const minCount = parseInt(e.target.value) || 1;
             this.minVenueCount = minCount;
             this.updateMap();
-            this.saveToLocalStorage(); // Save the setting immediately
+            this.saveToLocalStorage();
         });
+
+        // Map separate-by-status toggle
+        const separateByStatusEl = document.getElementById('separateByStatus');
+        if (separateByStatusEl) {
+            separateByStatusEl.addEventListener('change', (e) => {
+                this.separateByStatus = e.target.checked;
+                this.updateMap();
+                this.saveToLocalStorage();
+            });
+        }
         
         // Distance from (reference location)
         const distanceFromInput = document.getElementById('distanceFromInput');
@@ -282,28 +295,52 @@ class SimpleCRM {
         this.markers = [];
         
         if (this.filteredVenues.length === 0) return;
-        
-        // Group venues by city and state
+
+        // Status color map used when separateByStatus is on
+        // Chosen for high hue separation so markers stay readable when clustered
+        const STATUS_COLORS = {
+            'CANVAS':     '#e53e3e', // red
+            'FOLLOW-UP':  '#dd6b20', // orange
+            'BOOKED':     '#38a169', // green
+            'BOOK-AGAIN': '#3182ce', // blue
+            'NEXT-YEAR':  '#b83280', // magenta
+        };
+        const DEFAULT_COLOR = '#718096'; // gray for blank/unknown
+
+        const getStatusColor = (status) => {
+            const s = (status || '').toUpperCase();
+            for (const [key, color] of Object.entries(STATUS_COLORS)) {
+                if (s.includes(key)) return color;
+            }
+            return DEFAULT_COLOR;
+        };
+
+        // Group venues by location (and optionally status)
         const locationGroups = {};
         const notFoundLocations = [];
-        
+
         this.filteredVenues.forEach(venue => {
             const city = venue.City || '';
             const state = venue.State || '';
-            const key = `${city}, ${state}`.trim();
-            
-            if (key && key !== ',') {
-                if (!locationGroups[key]) {
-                    locationGroups[key] = {
-                        venues: [],
-                        city: city,
-                        state: state
-                    };
-                }
-                locationGroups[key].venues.push(venue);
+            const locKey = `${city}, ${state}`.trim();
+            if (!locKey || locKey === ',') return;
+
+            const groupKey = this.separateByStatus
+                ? `${locKey}||${(venue.Status || '').toUpperCase()}`
+                : locKey;
+
+            if (!locationGroups[groupKey]) {
+                locationGroups[groupKey] = {
+                    venues: [],
+                    city,
+                    state,
+                    color: this.separateByStatus ? getStatusColor(venue.Status) : DEFAULT_COLOR,
+                    statusLabel: this.separateByStatus ? (venue.Status || '(no status)') : null
+                };
             }
+            locationGroups[groupKey].venues.push(venue);
         });
-        
+
         // Filter locations by minimum venue count
         const filteredLocationGroups = {};
         Object.entries(locationGroups).forEach(([key, data]) => {
@@ -311,18 +348,43 @@ class SimpleCRM {
                 filteredLocationGroups[key] = data;
             }
         });
-        
+
+        // When separating by status, compute offsets so markers at the same
+        // location fan out instead of stacking on top of each other.
+        const locationSlots = {}; // locKey -> { total, current }
+        if (this.separateByStatus) {
+            Object.values(filteredLocationGroups).forEach(data => {
+                const locKey = `${data.city}, ${data.state}`;
+                if (!locationSlots[locKey]) locationSlots[locKey] = { total: 0, current: 0 };
+                locationSlots[locKey].total++;
+            });
+        }
+
         // Create markers for each filtered location and track not found
         Object.entries(filteredLocationGroups).forEach(([key, data]) => {
-            const coordinates = this.geocodeLocation(key);
+            const locKey = `${data.city}, ${data.state}`;
+            const coordinates = this.geocodeLocation(locKey);
             if (coordinates) {
-                this.createLocationMarker(key, data);
+                let offset = null;
+                if (this.separateByStatus) {
+                    const slot = locationSlots[locKey];
+                    if (slot.total > 1) {
+                        const angle = (2 * Math.PI * slot.current) / slot.total - Math.PI / 2;
+                        const spread = 0.012; // ~1 km offset
+                        offset = [
+                            coordinates[0] + spread * Math.sin(angle),
+                            coordinates[1] + spread * Math.cos(angle)
+                        ];
+                    }
+                    slot.current++;
+                }
+                this.createLocationMarker(locKey, data, offset);
             } else {
                 notFoundLocations.push({
-                    location: key,
-                    expanded: this.expandStateAbbreviations(key),
+                    location: locKey,
+                    expanded: this.expandStateAbbreviations(locKey),
                     venueCount: data.venues.length,
-                    venues: data.venues.map(v => v.Venue || 'Unknown Venue').slice(0, 3) // Show first 3 venue names
+                    venues: data.venues.map(v => v.Venue || 'Unknown Venue').slice(0, 3)
                 });
             }
         });
@@ -349,19 +411,22 @@ class SimpleCRM {
         }
     }
 
-    createLocationMarker(locationKey, data) {
+    createLocationMarker(locationKey, data, offsetCoords) {
         try {
             // Geocode the location
-            const coordinates = this.geocodeLocation(locationKey);
+            let coordinates = this.geocodeLocation(locationKey);
+            if (offsetCoords) coordinates = offsetCoords;
             
             if (coordinates && coordinates.length === 2 && !isNaN(coordinates[0]) && !isNaN(coordinates[1])) {
                 const count = data.venues.length;
                 const venueNames = data.venues.map(v => v.Venue || 'Unknown Venue').filter(Boolean);
                 
+                const markerColor = data.color || '#667eea';
+
                 // Create custom marker with count
                 const marker = L.circleMarker(coordinates, {
-                    radius: Math.max(15, Math.min(30, 10 + count * 2)), // Size based on count
-                    fillColor: '#667eea',
+                    radius: Math.max(15, Math.min(30, 10 + count * 2)),
+                    fillColor: markerColor,
                     color: '#fff',
                     weight: 2,
                     opacity: 1,
@@ -380,9 +445,9 @@ class SimpleCRM {
                         align-items: center; 
                         justify-content: center; 
                         font-weight: bold; 
-                        color: #667eea;
+                        color: ${markerColor};
                         font-size: 12px;
-                        border: 2px solid #667eea;
+                        border: 2px solid ${markerColor};
                     ">${count}</div>`,
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
@@ -394,6 +459,7 @@ class SimpleCRM {
                 const popupContent = `
                     <div class="venue-popup">
                         <h4>${data.city}, ${data.state}</h4>
+                        ${data.statusLabel ? `<p class="popup-status-label" style="color:${markerColor};font-weight:600;margin:2px 0 4px;">${data.statusLabel}</p>` : ''}
                         <p class="venue-count">${count} venue${count > 1 ? 's' : ''}</p>
                         <div class="popup-venue-list ${count > 1 ? 'scrollable' : ''}">
                         <ul style="text-align: left; margin: 5px 0; padding-left: 20px;">
@@ -3423,6 +3489,7 @@ class SimpleCRM {
                 statusFilters: this.statusFilters,
                 perimeterMiles: this.perimeterMiles,
                 minVenueCount: this.minVenueCount,
+                separateByStatus: this.separateByStatus,
                 defaultDistanceLocation: this.defaultDistanceLocation,
                 mapCenter: this.mapCenter,
                 mapZoom: this.mapZoom,
@@ -3452,6 +3519,7 @@ class SimpleCRM {
                 this.statusFilters = data.statusFilters || [];
                 this.perimeterMiles = data.perimeterMiles !== undefined ? data.perimeterMiles : 2000;
                 this.minVenueCount = data.minVenueCount || 1;
+                this.separateByStatus = data.separateByStatus || false;
                 this.defaultDistanceLocation = data.defaultDistanceLocation || 'Saranac Lake, NY';
                 this.mapCenter = data.mapCenter || [43.2994, -74.2179];
                 this.mapZoom = data.mapZoom || 7;
@@ -3462,6 +3530,10 @@ class SimpleCRM {
                 const minVenueInput = document.getElementById('minVenueFilter');
                 if (minVenueInput) {
                     minVenueInput.value = this.minVenueCount;
+                }
+                const separateByStatusEl = document.getElementById('separateByStatus');
+                if (separateByStatusEl) {
+                    separateByStatusEl.checked = this.separateByStatus;
                 }
                 const distanceFromInputEl = document.getElementById('distanceFromInput');
                 if (distanceFromInputEl) {
