@@ -957,6 +957,29 @@ header p {
     color: #90cdf4;
 }
 
+.timeline-months-out {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    margin-left: 6px;
+    border-radius: 999px;
+    background: #4a5568;
+    color: #e2e8f0;
+    font-size: 11px;
+    font-weight: 700;
+    font-style: normal;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.timeline-months-out.now {
+    background: #38a169;
+    color: white;
+}
+
 .popup-venue-info .venue-status {
     align-self: flex-start;
     margin-bottom: 2px;
@@ -1217,20 +1240,43 @@ td {
 
 /* Advanced Table Features */
 .sortable-header {
-    cursor: pointer;
+    cursor: grab;
     user-select: none;
     position: relative;
+}
+
+.sortable-header:active {
+    cursor: grabbing;
 }
 
 .sortable-header:hover {
     background-color: #2d2d2d;
 }
 
+.sortable-header.column-dragging {
+    opacity: 0.45;
+}
+
+.sortable-header.column-drag-over {
+    box-shadow: inset 3px 0 0 #667eea;
+    background-color: #2a3344;
+}
+
 .header-content {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 6px;
+}
+
+.column-drag-grip {
+    color: #718096;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.sortable-header:hover .column-drag-grip {
+    color: #a0aec0;
 }
 
 .header-text {

@@ -488,7 +488,7 @@ class SimpleCRM {
                                                 <span class="venue-name">${venueName}${contactLinksHtml}</span>
                                                 ${venueStatus ? `<span class="venue-status ${this.getStatusClass(venueStatus)}">${venueStatus}</span>` : ''}
                                                 ${locationAndDistance ? `<span class="venue-location">${locationAndDistance}</span>` : ''}
-                                                ${(venueTimeline || venueType) ? `<span class="venue-timeline">${[venueTimeline, venueType].filter(Boolean).join(' · ')}</span>` : ''}
+                                                ${(venueTimeline || venueType) ? `<span class="venue-timeline">${venueTimeline ? this.formatTimelineWithMonthsOut(venueTimeline) : ''}${venueTimeline && venueType ? ' · ' : ''}${venueType ? this.escapeHtml(venueType) : ''}</span>` : ''}
                                             </div>
                                             <div class="popup-actions">
                                                 <button class="action-btn edit-btn popup-edit-btn" data-venue-index="${globalIndex}" title="Edit">
@@ -715,6 +715,72 @@ class SimpleCRM {
         return links.length ? ` <span class="venue-contact-links">${links.join('')}</span>` : '';
     }
 
+    parseTimelineMonths(timeline) {
+        const raw = String(timeline || '').trim();
+        if (!raw) return null;
+
+        const rangeMatch = raw.match(/^(\d{1,2})\s*[-–—]\s*(\d{1,2})$/);
+        if (rangeMatch) {
+            const start = parseInt(rangeMatch[1], 10);
+            const end = parseInt(rangeMatch[2], 10);
+            if (start >= 1 && start <= 12 && end >= 1 && end <= 12) {
+                return { start, end };
+            }
+            return null;
+        }
+
+        const singleMatch = raw.match(/^(\d{1,2})$/);
+        if (singleMatch) {
+            const month = parseInt(singleMatch[1], 10);
+            if (month >= 1 && month <= 12) {
+                return { start: month, end: month };
+            }
+        }
+        return null;
+    }
+
+    isMonthInTimelineRange(month, start, end) {
+        if (start <= end) {
+            return month >= start && month <= end;
+        }
+        // Wraparound range, e.g. 11-02
+        return month >= start || month <= end;
+    }
+
+    getTimelineMonthsOut(timeline, date = new Date()) {
+        const parsed = this.parseTimelineMonths(timeline);
+        if (!parsed) return null;
+
+        const currentMonth = date.getMonth() + 1; // 1-12
+        const { start, end } = parsed;
+
+        if (this.isMonthInTimelineRange(currentMonth, start, end)) {
+            return 0;
+        }
+
+        let monthsOut = start - currentMonth;
+        if (monthsOut <= 0) monthsOut += 12;
+        return monthsOut;
+    }
+
+    getTimelineMonthsOutHtml(timeline, date = new Date()) {
+        const monthsOut = this.getTimelineMonthsOut(timeline, date);
+        if (monthsOut === null) return '';
+
+        const monthsTitle = monthsOut === 0
+            ? 'In season now'
+            : `${monthsOut} month${monthsOut === 1 ? '' : 's'} out`;
+        const nowClass = monthsOut === 0 ? ' now' : '';
+
+        return ` <span class="timeline-months-out${nowClass}" title="${monthsTitle}">${monthsOut}</span>`;
+    }
+
+    formatTimelineWithMonthsOut(timeline) {
+        const value = String(timeline || '').trim();
+        if (!value) return '';
+        return `${this.escapeHtml(value)}${this.getTimelineMonthsOutHtml(value)}`;
+    }
+
     getDistanceNumeric(venue) {
         const city = venue.City || '';
         const state = venue.State || '';
@@ -733,8 +799,48 @@ class SimpleCRM {
     }
 
     ensureDistanceHeader() {
-        this.headers = this.headers.filter(h => h !== 'Distance');
-        this.headers.unshift('Distance');
+        this.headers = this.getDefaultHeaders();
+    }
+
+    getDefaultHeaders() {
+        return ['Distance', ...STANDARD_COLUMNS];
+    }
+
+    normalizeHeaders(savedHeaders) {
+        const defaults = this.getDefaultHeaders();
+        const allowed = new Set(defaults);
+        const ordered = [];
+
+        if (Array.isArray(savedHeaders)) {
+            savedHeaders.forEach(header => {
+                if (allowed.has(header) && !ordered.includes(header)) {
+                    ordered.push(header);
+                }
+            });
+        }
+
+        defaults.forEach(header => {
+            if (!ordered.includes(header)) ordered.push(header);
+        });
+
+        return ordered;
+    }
+
+    reorderColumn(fromHeader, toHeader) {
+        if (!fromHeader || !toHeader || fromHeader === toHeader) return;
+
+        const fromIdx = this.headers.indexOf(fromHeader);
+        const toIdx = this.headers.indexOf(toHeader);
+        if (fromIdx < 0 || toIdx < 0) return;
+
+        const next = [...this.headers];
+        const [moved] = next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, moved);
+        this.headers = next;
+        this.columnWidthsCache = null;
+        this.lastColumnCalculationHash = null;
+        this.updateTable();
+        this.saveToLocalStorage();
     }
 
     handleLocationSearch(searchTerm) {
@@ -1048,8 +1154,7 @@ class SimpleCRM {
             (headerCells[0] !== 'Type' && headerCells[1] === 'Type')) ? 1 : 0;
 
         if (this.headers.length === 0) {
-            this.headers = [...STANDARD_COLUMNS];
-            this.ensureDistanceHeader();
+            this.headers = this.getDefaultHeaders();
         }
 
         const newVenues = [];
@@ -1146,6 +1251,9 @@ class SimpleCRM {
             // Ensure Venue column has adequate width
             else if (header === 'Venue') {
                 minWidth = 200; // Minimum 200px for venue column
+            }
+            else if (header === 'Timeline') {
+                minWidth = 130;
             }
             // Ensure Distance column has adequate width for "XXX.X mi"
             else if (header === 'Distance') {
@@ -1248,12 +1356,15 @@ class SimpleCRM {
         actionTh.style.width = '150px';
         headerRow.appendChild(actionTh);
         
-        // Add headers with sorting capabilities
+        // Add headers with sorting and drag-reorder
         this.headers.forEach(header => {
             if (this.hiddenColumns.has(header)) return;
             
             const th = document.createElement('th');
             th.className = 'sortable-header';
+            th.draggable = true;
+            th.dataset.header = header;
+            th.title = 'Click to sort · Drag to reorder';
             const width = columnWidths[header] || 120;
             th.style.width = width + 'px';
             th.style.minWidth = width + 'px';
@@ -1263,12 +1374,52 @@ class SimpleCRM {
             const headerContent = document.createElement('div');
             headerContent.className = 'header-content';
             headerContent.innerHTML = `
+                <span class="column-drag-grip" title="Drag to reorder"><i class="fas fa-grip-vertical"></i></span>
                 <span class="header-text">${header}</span>
                 <span class="sort-indicator">${this.getSortIndicator(header)}</span>
             `;
             
-            // Make header sortable
-            headerContent.addEventListener('click', () => this.sortByColumn(header));
+            // Sort on click (ignore if we just finished a drag)
+            headerContent.addEventListener('click', () => {
+                if (this._columnDragOccurred) return;
+                this.sortByColumn(header);
+            });
+
+            th.addEventListener('dragstart', (e) => {
+                this._draggingColumn = header;
+                this._columnDragOccurred = true;
+                th.classList.add('column-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', header);
+            });
+
+            th.addEventListener('dragend', () => {
+                th.classList.remove('column-dragging');
+                headerRow.querySelectorAll('.column-drag-over').forEach(el => {
+                    el.classList.remove('column-drag-over');
+                });
+                this._draggingColumn = null;
+                setTimeout(() => { this._columnDragOccurred = false; }, 0);
+            });
+
+            th.addEventListener('dragover', (e) => {
+                if (!this._draggingColumn || this._draggingColumn === header) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                th.classList.add('column-drag-over');
+            });
+
+            th.addEventListener('dragleave', () => {
+                th.classList.remove('column-drag-over');
+            });
+
+            th.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                th.classList.remove('column-drag-over');
+                const fromHeader = this._draggingColumn || e.dataTransfer.getData('text/plain');
+                this.reorderColumn(fromHeader, header);
+            });
             
             th.appendChild(headerContent);
             headerRow.appendChild(th);
@@ -1362,6 +1513,8 @@ class SimpleCRM {
                 // Apply special formatting for certain fields
                 if (header === 'Venue') {
                     td.innerHTML = `${this.escapeHtml(value)}${this.getVenueContactLinksHtml(venue)}`;
+                } else if (header === 'Timeline' && value) {
+                    td.innerHTML = this.formatTimelineWithMonthsOut(value);
                 } else if (header === 'Status' && value) {
                     const statusClass = this.getStatusClass(value);
                     td.innerHTML = `<span class="${statusClass}">${value}</span>`;
@@ -1382,6 +1535,7 @@ class SimpleCRM {
                     td.addEventListener('click', (e) => {
                         if (td.querySelector('input.inline-edit-input')) return;
                         if (e.target.closest('.venue-contact-link')) return;
+                        if (e.target.closest('.timeline-months-out')) return;
                         e.preventDefault();
                         e.stopPropagation();
                         this.startInlineEdit(td, venue, header);
@@ -1465,6 +1619,8 @@ class SimpleCRM {
         const renderCellContent = (value) => {
             if (header === 'Venue') {
                 td.innerHTML = `${this.escapeHtml(value || '')}${this.getVenueContactLinksHtml(venue)}`;
+            } else if (header === 'Timeline' && value) {
+                td.innerHTML = this.formatTimelineWithMonthsOut(value);
             } else if (header === 'Status' && value) {
                 const statusClass = this.getStatusClass(value);
                 td.innerHTML = `<span class="${statusClass}">${value}</span>`;
@@ -1913,10 +2069,13 @@ class SimpleCRM {
     }
 
     resetTableLayout() {
-        if (confirm('Reset column visibility to default?')) {
+        if (confirm('Reset column order and visibility to default?')) {
+            this.headers = this.getDefaultHeaders();
             this.hiddenColumns.clear();
             this.sortColumn = null;
             this.sortDirection = 'asc';
+            this.columnWidthsCache = null;
+            this.lastColumnCalculationHash = null;
             this.updateTable();
             this.saveToLocalStorage();
         }
@@ -3194,7 +3353,7 @@ class SimpleCRM {
             <div class="kanban-card-info">
                 <span class="venue-name">${venueName}${contactLinksHtml}</span>
                 ${locationHtml}${distanceHtml}
-                ${(venueTimeline || venueType) ? `<span class="venue-timeline">${[venueTimeline, venueType].filter(Boolean).join(' · ')}</span>` : ''}
+                ${(venueTimeline || venueType) ? `<span class="venue-timeline">${venueTimeline ? this.formatTimelineWithMonthsOut(venueTimeline) : ''}${venueTimeline && venueType ? ' · ' : ''}${venueType ? this.escapeHtml(venueType) : ''}</span>` : ''}
             </div>
             <div class="venue-actions">
                 <button class="venue-action-btn edit-action" title="Edit">
@@ -3609,9 +3768,7 @@ class SimpleCRM {
             if (saved) {
                 const data = JSON.parse(saved);
                 this.venues = data.venues || [];
-                // Normalize headers to standard columns only
-                this.headers = [...STANDARD_COLUMNS];
-                this.ensureDistanceHeader();
+                this.headers = this.normalizeHeaders(data.headers);
                 this.hiddenColumns = new Set(data.hiddenColumns || []);
                 this.sortColumn = data.sortColumn || null;
                 this.sortDirection = data.sortDirection || 'asc';
