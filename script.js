@@ -105,7 +105,12 @@ class SimpleCRM {
         document.getElementById('typeFilterBtn').addEventListener('click', () => this.openFilterModal('type'));
         document.getElementById('timelineFilterBtn').addEventListener('click', () => this.openFilterModal('timeline'));
         document.getElementById('statusFilterBtn').addEventListener('click', () => this.openFilterModal('status'));
-        document.getElementById('searchFilter').addEventListener('input', (e) => this.debouncedSearch(e.target.value));
+        document.getElementById('searchFilter').addEventListener('input', (e) => {
+            this.updateSearchClearButton();
+            this.debouncedSearch(e.target.value);
+        });
+        document.getElementById('clearSearchBtn').addEventListener('click', () => this.clearSearchFilter());
+        this.updateSearchClearButton();
         
         // Map venue count filter
         document.getElementById('minVenueFilter').addEventListener('input', (e) => {
@@ -475,11 +480,12 @@ class SimpleCRM {
                                     const locationAndDistance = locationStr
                                         ? (venueDistance !== '--' ? `${locationStr} (${venueDistance})` : locationStr)
                                         : (venueDistance !== '--' ? `(${venueDistance})` : '');
+                                    const contactLinksHtml = this.getVenueContactLinksHtml(venue);
                                     const globalIndex = this.venues.findIndex(v => v === venue);
                                     return `
                                         <li class="popup-venue-item">
                                             <div class="popup-venue-info">
-                                                <span class="venue-name">${venueName}</span>
+                                                <span class="venue-name">${venueName}${contactLinksHtml}</span>
                                                 ${venueStatus ? `<span class="venue-status ${this.getStatusClass(venueStatus)}">${venueStatus}</span>` : ''}
                                                 ${locationAndDistance ? `<span class="venue-location">${locationAndDistance}</span>` : ''}
                                                 ${(venueTimeline || venueType) ? `<span class="venue-timeline">${[venueTimeline, venueType].filter(Boolean).join(' · ')}</span>` : ''}
@@ -644,6 +650,69 @@ class SimpleCRM {
             venueCoords[0], venueCoords[1]
         );
         return `${miles.toFixed(1)} mi`;
+    }
+
+    normalizeWebsiteUrl(raw) {
+        let value = (raw || '').trim();
+        if (!value) return '';
+
+        // Strip wrapping quotes sometimes present in imported data
+        value = value.replace(/^['"]+|['"]+$/g, '');
+        if (!value) return '';
+
+        // Protocol-relative or missing protocol -> https
+        if (value.startsWith('//')) {
+            value = value.slice(2);
+        } else if (/^https?:\/\//i.test(value)) {
+            value = value.replace(/^https?:\/\//i, '');
+        }
+
+        // Drop any leftover leading slashes
+        value = value.replace(/^\/+/, '');
+        if (!value) return '';
+
+        return `https://${value}`;
+    }
+
+    escapeHtml(text) {
+        return String(text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    refreshVenueContactIconsInRow(row, venue) {
+        if (!row) return;
+        const visibleHeaders = this.headers.filter(h => !this.hiddenColumns.has(h));
+        const venueIdx = visibleHeaders.indexOf('Venue');
+        if (venueIdx < 0) return;
+        const venueTd = row.children[venueIdx + 1]; // +1 for Actions column
+        if (!venueTd) return;
+        venueTd.innerHTML = `${this.escapeHtml(venue.Venue || '')}${this.getVenueContactLinksHtml(venue)}`;
+    }
+
+    getVenueContactLinksHtml(venue) {
+        const phone = (venue.Phone || '').trim();
+        const email = (venue.Email || '').trim();
+        const websiteUrl = this.normalizeWebsiteUrl(venue.Website);
+        const links = [];
+
+        if (phone) {
+            const tel = phone.replace(/[^\d+]/g, '');
+            if (tel) {
+                links.push(`<a class="venue-contact-link venue-phone-link" href="tel:${tel}" title="Call ${phone}"><i class="fas fa-phone"></i></a>`);
+            }
+        }
+        if (email) {
+            links.push(`<a class="venue-contact-link venue-email-link" href="mailto:${email}" title="Email ${email}"><i class="fas fa-envelope"></i></a>`);
+        }
+        if (websiteUrl) {
+            links.push(`<a class="venue-contact-link venue-website-link" href="${websiteUrl}" target="_blank" rel="noopener noreferrer" title="Open website"><i class="fas fa-external-link-alt"></i></a>`);
+        }
+
+        return links.length ? ` <span class="venue-contact-links">${links.join('')}</span>` : '';
     }
 
     getDistanceNumeric(venue) {
@@ -1291,7 +1360,9 @@ class SimpleCRM {
                 }
                 
                 // Apply special formatting for certain fields
-                if (header === 'Status' && value) {
+                if (header === 'Venue') {
+                    td.innerHTML = `${this.escapeHtml(value)}${this.getVenueContactLinksHtml(venue)}`;
+                } else if (header === 'Status' && value) {
                     const statusClass = this.getStatusClass(value);
                     td.innerHTML = `<span class="${statusClass}">${value}</span>`;
                 } else if (header === 'Email' && value) {
@@ -1299,12 +1370,10 @@ class SimpleCRM {
                 } else if (header === 'Phone' && value) {
                     td.innerHTML = `<a href="tel:${value}">${value}</a>`;
                 } else if (header === 'Website' && value) {
-                    // Ensure the URL has a protocol
-                    let url = value;
-                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                        url = 'https://' + url;
-                    }
-                    td.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer">${value}</a>`;
+                    const url = this.normalizeWebsiteUrl(value);
+                    td.innerHTML = url
+                        ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${value}</a>`
+                        : value;
                 } else {
                     td.textContent = value;
                 }
@@ -1312,6 +1381,7 @@ class SimpleCRM {
                 if (!isDistance) {
                     td.addEventListener('click', (e) => {
                         if (td.querySelector('input.inline-edit-input')) return;
+                        if (e.target.closest('.venue-contact-link')) return;
                         e.preventDefault();
                         e.stopPropagation();
                         this.startInlineEdit(td, venue, header);
@@ -1393,7 +1463,9 @@ class SimpleCRM {
         input.focus();
         
         const renderCellContent = (value) => {
-            if (header === 'Status' && value) {
+            if (header === 'Venue') {
+                td.innerHTML = `${this.escapeHtml(value || '')}${this.getVenueContactLinksHtml(venue)}`;
+            } else if (header === 'Status' && value) {
                 const statusClass = this.getStatusClass(value);
                 td.innerHTML = `<span class="${statusClass}">${value}</span>`;
             } else if (header === 'Email' && value) {
@@ -1401,11 +1473,10 @@ class SimpleCRM {
             } else if (header === 'Phone' && value) {
                 td.innerHTML = `<a href="tel:${value}">${value}</a>`;
             } else if (header === 'Website' && value) {
-                let url = value;
-                if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                    url = 'https://' + url;
-                }
-                td.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer">${value}</a>`;
+                const url = this.normalizeWebsiteUrl(value);
+                td.innerHTML = url
+                    ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${value}</a>`
+                    : value;
             } else {
                 td.textContent = value || '';
             }
@@ -1430,6 +1501,9 @@ class SimpleCRM {
                 venue[header] = newValue;
                 venue['Last Updated'] = new Date().toISOString();
                 renderCellContent(newValue);
+                if (['Phone', 'Email', 'Website'].includes(header)) {
+                    this.refreshVenueContactIconsInRow(td.closest('tr'), venue);
+                }
                 this.updateMap();
                 this.updateKanbanBoard();
                 this.saveToLocalStorage();
@@ -1645,6 +1719,11 @@ class SimpleCRM {
                     }
                 }
             });
+        });
+
+        // Keep contact meta links from closing/interfering with the popup
+        popup.getElement().querySelectorAll('.venue-contact-link').forEach(link => {
+            link.addEventListener('click', (e) => e.stopPropagation());
         });
 
         // Add event listeners for copy buttons
@@ -2339,10 +2418,10 @@ class SimpleCRM {
         // URL encode the prompt
         const encodedPrompt = encodeURIComponent(aiPrompt);
         
-        // Create ChatGPT URL with the encoded prompt
-        const chatGptUrl = `https://www.perplexity.ai/search?q=${encodedPrompt}&temporary-chat=true`;
+        // Create Google AI Mode search URL with the encoded prompt
+        const chatGptUrl = `https://www.google.com/search?udm=50&source=searchlabs&q=${encodedPrompt}`;
         
-        // Open ChatGPT in a new tab
+        // Open in a new tab
         window.open(chatGptUrl, '_blank', 'noopener,noreferrer');
         
         // Show success feedback
@@ -2894,6 +2973,22 @@ class SimpleCRM {
         selectAllCheckbox.indeterminate = false;
     }
 
+    clearSearchFilter() {
+        const searchEl = document.getElementById('searchFilter');
+        if (!searchEl) return;
+        searchEl.value = '';
+        this.updateSearchClearButton();
+        this.applyFilters();
+        searchEl.focus();
+    }
+
+    updateSearchClearButton() {
+        const searchEl = document.getElementById('searchFilter');
+        const clearBtn = document.getElementById('clearSearchBtn');
+        if (!searchEl || !clearBtn) return;
+        clearBtn.hidden = !(searchEl.value || '').length;
+    }
+
     clearAllFilters() {
         this.typeFilters = [];
         this.timelineFilters = [];
@@ -2902,6 +2997,7 @@ class SimpleCRM {
         
         // Clear search input
         document.getElementById('searchFilter').value = '';
+        this.updateSearchClearButton();
         
         const perimeterInput = document.getElementById('perimeterFilter');
         if (perimeterInput) perimeterInput.value = '0';
@@ -3088,6 +3184,7 @@ class SimpleCRM {
             ? `<span class="venue-distance">${locationStr ? ` (${venueDistance})` : `(${venueDistance})`}</span>`
             : '';
         const venueNotes = (venue.Notes || '').trim();
+        const contactLinksHtml = this.getVenueContactLinksHtml(venue);
         const nextYearBtnHtml = isFollowUpColumn
             ? `<button class="venue-action-btn next-year-action" title="Set status to NEXT-YEAR (Next-Year column)">
                     <i class="fas fa-calendar"></i>
@@ -3095,7 +3192,7 @@ class SimpleCRM {
             : '';
         card.innerHTML = `
             <div class="kanban-card-info">
-                <span class="venue-name">${venueName}</span>
+                <span class="venue-name">${venueName}${contactLinksHtml}</span>
                 ${locationHtml}${distanceHtml}
                 ${(venueTimeline || venueType) ? `<span class="venue-timeline">${[venueTimeline, venueType].filter(Boolean).join(' · ')}</span>` : ''}
             </div>
@@ -3135,6 +3232,11 @@ class SimpleCRM {
         const deleteBtn = card.querySelector('.delete-action');
         const moveBtn = card.querySelector('.move-action');
         const nextYearBtn = card.querySelector('.next-year-action');
+        const contactLinks = card.querySelectorAll('.venue-contact-link');
+
+        contactLinks.forEach(link => {
+            link.addEventListener('click', (e) => e.stopPropagation());
+        });
         
         editBtn.addEventListener('click', (e) => {
             e.stopPropagation();

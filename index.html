@@ -119,7 +119,12 @@
                         <span id="statusFilterText">All Statuses</span>
                         <i class="fas fa-chevron-down"></i>
                     </button>
-                    <input type="text" id="searchFilter" placeholder="Search venues, cities, contacts...">
+                    <div class="search-filter-wrap">
+                        <input type="text" id="searchFilter" placeholder="Search venues, cities, contacts...">
+                        <button type="button" id="clearSearchBtn" class="search-clear-btn" title="Clear search" aria-label="Clear search" hidden>
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                     <button id="clearAllFiltersBtn" class="btn btn-small btn-secondary">
                         Clear All Filters
                     </button>
@@ -199,10 +204,10 @@
                     </form>
                     <div class="contact-actions">
                         <button type="button" class="btn btn-secondary" id="copyAiPromptBtn">
-                            <i class="fas fa-robot"></i> Ask ChatGPT
+                            <i class="fas fa-robot"></i> Ask AI
                         </button>
                         <button type="button" class="btn btn-primary" id="importContactJsonBtn">
-                            <i class="fas fa-upload"></i> Import ChatGPT Response
+                            <i class="fas fa-upload"></i> Import AI Response
                         </button>
                     </div>
                 </div>
