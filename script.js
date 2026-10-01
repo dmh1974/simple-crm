@@ -1232,13 +1232,21 @@ class SimpleCRM {
         const headerCells = rows[0].map(cell => String(cell || '').trim());
         const indexByHeader = new Map();
         headerCells.forEach((name, i) => {
-            if (name && !indexByHeader.has(name)) {
-                indexByHeader.set(name, i);
-            }
+            if (!name) return;
+            // Exact name wins; also allow case-insensitive match for spreadsheet quirks
+            if (!indexByHeader.has(name)) indexByHeader.set(name, i);
+            const lower = name.toLowerCase();
+            if (!indexByHeader.has(lower)) indexByHeader.set(lower, i);
         });
 
+        const resolveColumnIndex = (col) => {
+            if (indexByHeader.has(col)) return indexByHeader.get(col);
+            const lower = col.toLowerCase();
+            return indexByHeader.has(lower) ? indexByHeader.get(lower) : null;
+        };
+
         // Map by header name — works with reordered / partial / Distance-anywhere exports
-        const hasAnyStandard = STANDARD_COLUMNS.some(col => indexByHeader.has(col));
+        const hasAnyStandard = STANDARD_COLUMNS.some(col => resolveColumnIndex(col) != null);
         if (!hasAnyStandard) {
             if (!silent) {
                 alert('No recognized columns found. The first row must include headers like Type, Venue, City, State, etc.');
@@ -1253,36 +1261,37 @@ class SimpleCRM {
         const newVenues = [];
         let importedCount = 0;
         let updatedCount = 0;
-        const columnsInFile = STANDARD_COLUMNS.filter(col => indexByHeader.has(col));
+
+        const readCell = (values, col) => {
+            const idx = resolveColumnIndex(col);
+            if (idx == null) return '';
+            const raw = String(values[idx] ?? '');
+            return col === 'Notes'
+                ? raw.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+                : raw.trim();
+        };
 
         for (let i = 1; i < rows.length; i++) {
             const values = rows[i];
             if (!values.some(v => String(v || '').trim())) continue;
 
+            // Always build a full standard-field record from this row
             const incoming = {};
-            columnsInFile.forEach(col => {
-                const idx = indexByHeader.get(col);
-                const raw = String(values[idx] ?? '');
-                // Preserve Notes content; only normalize other fields' outer whitespace
-                incoming[col] = col === 'Notes'
-                    ? raw.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-                    : raw.trim();
+            STANDARD_COLUMNS.forEach(col => {
+                incoming[col] = readCell(values, col);
             });
             // Distance and unknown columns are ignored (Distance is computed live)
 
             const existing = this.findDuplicateVenue(incoming);
             if (existing) {
-                // Update only columns present in the file so partial imports don't wipe data
-                columnsInFile.forEach(col => {
+                // Replace every standard field on the existing venue
+                STANDARD_COLUMNS.forEach(col => {
                     existing[col] = incoming[col];
                 });
                 existing['Last Updated'] = new Date().toISOString();
                 updatedCount++;
             } else {
-                const venue = {};
-                STANDARD_COLUMNS.forEach(col => {
-                    venue[col] = Object.prototype.hasOwnProperty.call(incoming, col) ? incoming[col] : '';
-                });
+                const venue = { ...incoming };
                 venue['Last Updated'] = new Date().toISOString();
                 newVenues.push(venue);
                 importedCount++;
@@ -1294,6 +1303,8 @@ class SimpleCRM {
         if (importedCount > 0 || updatedCount > 0) {
             this.applyFilters();
             this.updateFilterButtonTexts();
+            this.updateTable();
+            this.updateMap();
             setTimeout(() => this.updateKanbanBoard(), 100);
         }
 
