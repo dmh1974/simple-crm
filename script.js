@@ -1112,7 +1112,79 @@ class SimpleCRM {
             alert('Error reading file. Please try again.');
             fileNameSpan.textContent = '';
         };
-        reader.readAsText(file);
+        reader.readAsText(file, 'UTF-8');
+    }
+
+    escapeTsvField(value) {
+        const text = value == null ? '' : String(value);
+        // Quote fields that contain tabs, newlines, quotes, or leading/trailing spaces
+        if (/[\t\n\r"]/.test(text) || /^\s|\s$/.test(text)) {
+            return `"${text.replace(/"/g, '""')}"`;
+        }
+        return text;
+    }
+
+    parseTsvRows(data) {
+        const text = String(data || '').replace(/^\uFEFF/, '');
+        const rows = [];
+        let row = [];
+        let field = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            const next = text[i + 1];
+
+            if (inQuotes) {
+                if (ch === '"') {
+                    if (next === '"') {
+                        field += '"';
+                        i++;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    field += ch;
+                }
+                continue;
+            }
+
+            if (ch === '"') {
+                inQuotes = true;
+                continue;
+            }
+
+            if (ch === '\t') {
+                row.push(field);
+                field = '';
+                continue;
+            }
+
+            if (ch === '\r') {
+                continue;
+            }
+
+            if (ch === '\n') {
+                row.push(field);
+                // Skip completely empty trailing lines
+                if (row.length > 1 || (row.length === 1 && row[0] !== '')) {
+                    rows.push(row);
+                }
+                row = [];
+                field = '';
+                continue;
+            }
+
+            field += ch;
+        }
+
+        // Final field/row (file may not end with newline)
+        row.push(field);
+        if (row.length > 1 || (row.length === 1 && row[0] !== '')) {
+            rows.push(row);
+        }
+
+        return rows;
     }
 
     importData() {
@@ -1144,13 +1216,13 @@ class SimpleCRM {
 
     parseAndImportTsv(data, options = {}) {
         const { silent = false } = options;
-        const lines = data.split('\n');
-        if (lines.length < 2) {
+        const rows = this.parseTsvRows(data);
+        if (rows.length < 2) {
             if (!silent) alert('Data must have at least a header row and one data row!');
             return null;
         }
 
-        const headerCells = lines[0].split('\t').map(cell => cell.trim());
+        const headerCells = rows[0].map(cell => String(cell || '').trim());
         const colOffset = (headerCells[0] === 'Distance' ||
             (headerCells[0] !== 'Type' && headerCells[1] === 'Type')) ? 1 : 0;
 
@@ -1162,15 +1234,15 @@ class SimpleCRM {
         let importedCount = 0;
         let duplicateCount = 0;
 
-        for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
+        for (let i = 1; i < rows.length; i++) {
+            const values = rows[i];
+            // Skip blank rows
+            if (!values.some(v => String(v || '').trim())) continue;
 
-            const values = line.split('\t');
             const venue = {};
 
             STANDARD_COLUMNS.forEach((col, j) => {
-                venue[col] = (values[j + colOffset] || '').trim();
+                venue[col] = String(values[j + colOffset] || '').trim();
             });
 
             venue['Last Updated'] = new Date().toISOString();
@@ -1310,7 +1382,7 @@ class SimpleCRM {
             return;
         }
 
-        let csvContent = exportColumns.join('\t') + '\n';
+        let csvContent = exportColumns.map(h => this.escapeTsvField(h)).join('\t') + '\n';
         
         this.filteredVenues.forEach(venue => {
             const row = exportColumns.map(header => {
@@ -1318,7 +1390,7 @@ class SimpleCRM {
                     const miles = this.getDistanceNumeric(venue);
                     return miles === Infinity ? '' : miles.toFixed(1);
                 }
-                return venue[header] || '';
+                return this.escapeTsvField(venue[header] || '');
             }).join('\t');
             csvContent += row + '\n';
         });
@@ -1328,7 +1400,8 @@ class SimpleCRM {
         const dateStr = now.toISOString().slice(0, 10);
         const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-');
         const filename = `crm_venues_${dateStr}_${timeStr}.tsv`;
-        const blob = new Blob([csvContent], { type: 'text/tab-separated-values' });
+        // UTF-8 BOM helps Excel preserve special characters
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/tab-separated-values;charset=utf-8' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
