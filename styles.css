@@ -135,6 +135,24 @@ header p {
     background: #c82333;
 }
 
+.app-footer-actions {
+    margin: 40px 0 20px;
+    padding: 24px;
+    text-align: center;
+    border-top: 1px solid #4a5568;
+}
+
+.app-footer-actions .btn-danger {
+    padding: 12px 24px;
+    font-size: 15px;
+}
+
+.app-footer-note {
+    margin: 10px 0 0;
+    color: #a0aec0;
+    font-size: 13px;
+}
+
 .btn-small {
     padding: 8px 16px;
     font-size: 14px;

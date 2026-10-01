@@ -190,6 +190,7 @@ class SimpleCRM {
         document.getElementById('addRowBtn').addEventListener('click', () => this.addNewRow());
         document.getElementById('toggleColumnsBtn').addEventListener('click', () => this.showColumnToggleModal());
         document.getElementById('resetLayoutBtn').addEventListener('click', () => this.resetTableLayout());
+        document.getElementById('resetAppBtn').addEventListener('click', () => this.resetApp());
         
         // Edit modal controls
         document.getElementById('editModal').addEventListener('click', (e) => {
@@ -2079,6 +2080,24 @@ class SimpleCRM {
             this.updateTable();
             this.saveToLocalStorage();
         }
+    }
+
+    resetApp() {
+        const confirmed = confirm(
+            'Reset the entire app?\n\nThis will permanently clear all venues, filters, column settings, and other saved data. This cannot be undone.'
+        );
+        if (!confirmed) return;
+
+        const doubleCheck = confirm('Are you sure? All your CRM data will be deleted.');
+        if (!doubleCheck) return;
+
+        try {
+            localStorage.removeItem('crmData');
+        } catch (error) {
+            console.warn('Could not clear localStorage:', error);
+        }
+
+        window.location.reload();
     }
 
     getStatusClass(status) {
