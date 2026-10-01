@@ -242,6 +242,7 @@
                         <ol>
                             <li><strong>Option 1:</strong> Upload a .tsv file using the file picker below</li>
                             <li><strong>Option 2:</strong> Copy your spreadsheet data (including headers) and paste it into the text area</li>
+                            <li>The first row must contain column headers (Type, Venue, City, etc.). Column order does not matter.</li>
                             <li>Click "Import Data" to add to your existing data</li>
                         </ol>
                     </div>
@@ -265,7 +266,7 @@
                 <div class="tab-content" id="exportTab">
                     <div class="export-info">
                         <h4>Export Options:</h4>
-                        <p>Export your current venue data in tab-separated format for use in Excel, Google Sheets, or other applications.</p>
+                        <p>Exports the currently filtered rows as a .tsv file. Column order follows your table layout. All standard fields are included so the file can be re-imported safely. Notes with line breaks and special characters are quoted automatically.</p>
                         <div class="export-controls">
                             <button id="exportBtn" class="btn btn-primary">Export Data</button>
                             <p class="export-note">Data will be downloaded as a .tsv file</p>

@@ -1223,8 +1223,21 @@ class SimpleCRM {
         }
 
         const headerCells = rows[0].map(cell => String(cell || '').trim());
-        const colOffset = (headerCells[0] === 'Distance' ||
-            (headerCells[0] !== 'Type' && headerCells[1] === 'Type')) ? 1 : 0;
+        const indexByHeader = new Map();
+        headerCells.forEach((name, i) => {
+            if (name && !indexByHeader.has(name)) {
+                indexByHeader.set(name, i);
+            }
+        });
+
+        // Map by header name — works with reordered / partial / Distance-anywhere exports
+        const hasAnyStandard = STANDARD_COLUMNS.some(col => indexByHeader.has(col));
+        if (!hasAnyStandard) {
+            if (!silent) {
+                alert('No recognized columns found. The first row must include headers like Type, Venue, City, State, etc.');
+            }
+            return null;
+        }
 
         if (this.headers.length === 0) {
             this.headers = this.getDefaultHeaders();
@@ -1236,14 +1249,20 @@ class SimpleCRM {
 
         for (let i = 1; i < rows.length; i++) {
             const values = rows[i];
-            // Skip blank rows
             if (!values.some(v => String(v || '').trim())) continue;
 
             const venue = {};
-
-            STANDARD_COLUMNS.forEach((col, j) => {
-                venue[col] = String(values[j + colOffset] || '').trim();
+            STANDARD_COLUMNS.forEach(col => {
+                const idx = indexByHeader.get(col);
+                if (idx == null) {
+                    venue[col] = '';
+                    return;
+                }
+                const raw = String(values[idx] ?? '');
+                // Preserve Notes content; only normalize other fields' outer whitespace
+                venue[col] = col === 'Notes' ? raw.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n') : raw.trim();
             });
+            // Distance and unknown columns are ignored (Distance is computed live)
 
             venue['Last Updated'] = new Date().toISOString();
 
@@ -1376,11 +1395,21 @@ class SimpleCRM {
             return;
         }
 
-        const exportColumns = this.headers.filter(header => !this.hiddenColumns.has(header));
-        if (exportColumns.length === 0) {
-            alert('No visible columns to export!');
-            return;
+        // Prefer current visible column order, but always include every standard
+        // data column so exports remain safely re-importable.
+        const visibleOrdered = this.headers.filter(header => !this.hiddenColumns.has(header));
+        const exportColumns = [];
+        visibleOrdered.forEach(header => {
+            if (!exportColumns.includes(header)) exportColumns.push(header);
+        });
+        // Ensure Distance is present for convenience
+        if (!exportColumns.includes('Distance')) {
+            exportColumns.unshift('Distance');
         }
+        // Ensure all standard data fields are present even if currently hidden
+        STANDARD_COLUMNS.forEach(col => {
+            if (!exportColumns.includes(col)) exportColumns.push(col);
+        });
 
         let csvContent = exportColumns.map(h => this.escapeTsvField(h)).join('\t') + '\n';
         
@@ -1388,7 +1417,7 @@ class SimpleCRM {
             const row = exportColumns.map(header => {
                 if (header === 'Distance') {
                     const miles = this.getDistanceNumeric(venue);
-                    return miles === Infinity ? '' : miles.toFixed(1);
+                    return this.escapeTsvField(miles === Infinity ? '' : miles.toFixed(1));
                 }
                 return this.escapeTsvField(venue[header] || '');
             }).join('\t');
