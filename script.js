@@ -1065,17 +1065,20 @@ class SimpleCRM {
     }
 
     isDuplicateVenue(newVenue) {
+        return this.findDuplicateVenue(newVenue) != null;
+    }
+
+    findDuplicateVenue(newVenue) {
         const newVenueName = (newVenue.Venue || '').trim().toLowerCase();
         const newCity = (newVenue.City || '').trim().toLowerCase();
         const newState = (newVenue.State || '').trim().toLowerCase();
         
         // If any of the key fields are missing, don't consider it a duplicate
         if (!newVenueName || !newCity || !newState) {
-            return false;
+            return null;
         }
         
-        // Check against existing venues
-        return this.venues.some(existingVenue => {
+        return this.venues.find(existingVenue => {
             const existingVenueName = (existingVenue.Venue || '').trim().toLowerCase();
             const existingCity = (existingVenue.City || '').trim().toLowerCase();
             const existingState = (existingVenue.State || '').trim().toLowerCase();
@@ -1083,7 +1086,7 @@ class SimpleCRM {
             return existingVenueName === newVenueName && 
                    existingCity === newCity && 
                    existingState === newState;
-        });
+        }) || null;
     }
 
     handleFileUpload(event) {
@@ -1200,9 +1203,13 @@ class SimpleCRM {
 
             document.getElementById('spreadsheetData').value = '';
 
-            let message = `Successfully imported ${result.importedCount} new venues!`;
-            if (result.duplicateCount > 0) {
-                message += `\n\n${result.duplicateCount} duplicate venues were skipped (based on Venue + City + State combination).`;
+            let message = '';
+            if (result.importedCount > 0 && result.updatedCount > 0) {
+                message = `Imported ${result.importedCount} new venues and updated ${result.updatedCount} existing venues.`;
+            } else if (result.updatedCount > 0) {
+                message = `Updated ${result.updatedCount} existing venues (matched by Venue + City + State).`;
+            } else {
+                message = `Successfully imported ${result.importedCount} new venues!`;
             }
             if (this.venues.length > 0) {
                 message += `\n\nTotal venues in database: ${this.venues.length}`;
@@ -1245,38 +1252,46 @@ class SimpleCRM {
 
         const newVenues = [];
         let importedCount = 0;
-        let duplicateCount = 0;
+        let updatedCount = 0;
+        const columnsInFile = STANDARD_COLUMNS.filter(col => indexByHeader.has(col));
 
         for (let i = 1; i < rows.length; i++) {
             const values = rows[i];
             if (!values.some(v => String(v || '').trim())) continue;
 
-            const venue = {};
-            STANDARD_COLUMNS.forEach(col => {
+            const incoming = {};
+            columnsInFile.forEach(col => {
                 const idx = indexByHeader.get(col);
-                if (idx == null) {
-                    venue[col] = '';
-                    return;
-                }
                 const raw = String(values[idx] ?? '');
                 // Preserve Notes content; only normalize other fields' outer whitespace
-                venue[col] = col === 'Notes' ? raw.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n') : raw.trim();
+                incoming[col] = col === 'Notes'
+                    ? raw.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+                    : raw.trim();
             });
             // Distance and unknown columns are ignored (Distance is computed live)
 
-            venue['Last Updated'] = new Date().toISOString();
-
-            if (!this.isDuplicateVenue(venue)) {
+            const existing = this.findDuplicateVenue(incoming);
+            if (existing) {
+                // Update only columns present in the file so partial imports don't wipe data
+                columnsInFile.forEach(col => {
+                    existing[col] = incoming[col];
+                });
+                existing['Last Updated'] = new Date().toISOString();
+                updatedCount++;
+            } else {
+                const venue = {};
+                STANDARD_COLUMNS.forEach(col => {
+                    venue[col] = Object.prototype.hasOwnProperty.call(incoming, col) ? incoming[col] : '';
+                });
+                venue['Last Updated'] = new Date().toISOString();
                 newVenues.push(venue);
                 importedCount++;
-            } else {
-                duplicateCount++;
             }
         }
 
         this.venues = [...this.venues, ...newVenues];
 
-        if (importedCount > 0) {
+        if (importedCount > 0 || updatedCount > 0) {
             this.applyFilters();
             this.updateFilterButtonTexts();
             setTimeout(() => this.updateKanbanBoard(), 100);
@@ -1284,7 +1299,7 @@ class SimpleCRM {
 
         this.saveToLocalStorage();
 
-        return { importedCount, duplicateCount };
+        return { importedCount, updatedCount };
     }
 
     async loadDefaultTsv() {
