@@ -725,6 +725,10 @@ class SimpleCRM {
             const start = parseInt(rangeMatch[1], 10);
             const end = parseInt(rangeMatch[2], 10);
             if (start >= 1 && start <= 12 && end >= 1 && end <= 12) {
+                // 01-01 means in season all year
+                if (start === 1 && end === 1) {
+                    return { start: 1, end: 12, yearRound: true };
+                }
                 return { start, end };
             }
             return null;
@@ -752,6 +756,8 @@ class SimpleCRM {
         const parsed = this.parseTimelineMonths(timeline);
         if (!parsed) return null;
 
+        if (parsed.yearRound) return 0;
+
         const currentMonth = date.getMonth() + 1; // 1-12
         const { start, end } = parsed;
 
@@ -769,7 +775,7 @@ class SimpleCRM {
         if (monthsOut === null) return '';
 
         const monthsTitle = monthsOut === 0
-            ? 'In season now'
+            ? (this.parseTimelineMonths(timeline)?.yearRound ? 'In season all year' : 'In season now')
             : `${monthsOut} month${monthsOut === 1 ? '' : 's'} out`;
         const nowClass = monthsOut === 0 ? ' now' : '';
 
