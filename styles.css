@@ -600,7 +600,7 @@ header p {
 
 .kanban-board {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 20px;
     min-height: 400px;
 }
@@ -631,6 +631,10 @@ header p {
 
 .kanban-header-canvas {
     background: #e53e3e;
+}
+
+.kanban-header-contact {
+    background: #319795;
 }
 
 .kanban-header-follow-up {
@@ -764,6 +768,22 @@ header p {
     color: #e1e8ed;
     margin-bottom: 0;
     line-height: 1.25;
+}
+
+.kanban-card-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.kanban-card-meta .venue-contact-links {
+    margin-left: 0;
+}
+
+.kanban-card-meta .timeline-months-out {
+    margin-left: 0;
 }
 
 .kanban-card-info .venue-location {
@@ -1739,6 +1759,15 @@ td {
 .status-canvas {
     background-color: #f8d7da;
     color: #721c24;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-contact {
+    background-color: #d6f5f2;
+    color: #234e52;
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 12px;

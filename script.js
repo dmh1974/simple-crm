@@ -5,6 +5,7 @@ const STANDARD_COLUMNS = ['Type', 'Venue', 'City', 'State', 'Status', 'Timeline'
 
 const KANBAN_STAGES = [
     { status: 'CANVAS', label: 'Canvas' },
+    { status: 'CONTACT', label: 'Contact' },
     { status: 'FOLLOW-UP', label: 'Follow-Up' },
     { status: 'BOOKED', label: 'Booked' },
     { status: 'BOOK-AGAIN', label: 'Book Again' },
@@ -251,6 +252,7 @@ class SimpleCRM {
         // Kanban column search: filter cards in each column by search term
         const kanbanSearchPairs = [
             ['canvasSearch', 'canvasContent'],
+            ['contactSearch', 'contactContent'],
             ['followUpSearch', 'followUpContent'],
             ['bookedSearch', 'bookedContent'],
             ['bookAgainSearch', 'bookAgainContent'],
@@ -306,6 +308,7 @@ class SimpleCRM {
         // Chosen for high hue separation so markers stay readable when clustered
         const STATUS_COLORS = {
             'CANVAS':     '#e53e3e', // red
+            'CONTACT':    '#319795', // teal
             'FOLLOW-UP':  '#dd6b20', // orange
             'BOOKED':     '#38a169', // green
             'BOOK-AGAIN': '#3182ce', // blue
@@ -2238,9 +2241,10 @@ class SimpleCRM {
         const s = (status || '').toUpperCase();
         if (s.includes('NEXT-YEAR')) return 'status-next-year';
         if (s.includes('CANVAS')) return 'status-canvas';
+        if (s.includes('CONTACT')) return 'status-contact';
         if (s.includes('FOLLOW-UP')) return 'status-follow-up';
-        if (s.includes('BOOKED')) return 'status-booked';
         if (s.includes('BOOK-AGAIN')) return 'status-book-again';
+        if (s.includes('BOOKED')) return 'status-booked';
         return '';
     }
 
@@ -3392,7 +3396,8 @@ class SimpleCRM {
 
     updateKanbanBoard() {
         // Check if kanban elements exist before updating
-        if (!document.getElementById('canvasContent') || 
+        if (!document.getElementById('canvasContent') ||
+            !document.getElementById('contactContent') ||
             !document.getElementById('followUpContent') || 
             !document.getElementById('bookedContent') || 
             !document.getElementById('bookAgainContent') ||
@@ -3407,17 +3412,19 @@ class SimpleCRM {
     populateKanbanColumns() {
         // Check if kanban elements exist
         const canvasContent = document.getElementById('canvasContent');
+        const contactContent = document.getElementById('contactContent');
         const followUpContent = document.getElementById('followUpContent');
         const bookedContent = document.getElementById('bookedContent');
         const bookAgainContent = document.getElementById('bookAgainContent');
         const nextYearContent = document.getElementById('nextYearContent');
         
-        if (!canvasContent || !followUpContent || !bookedContent || !bookAgainContent || !nextYearContent) {
+        if (!canvasContent || !contactContent || !followUpContent || !bookedContent || !bookAgainContent || !nextYearContent) {
             return; // Kanban board not loaded yet
         }
         
         // Clear all columns
         canvasContent.innerHTML = '';
+        contactContent.innerHTML = '';
         followUpContent.innerHTML = '';
         bookedContent.innerHTML = '';
         bookAgainContent.innerHTML = '';
@@ -3425,24 +3432,38 @@ class SimpleCRM {
 
         // NEXT-YEAR has its own column — keep it out of pipeline columns
         const excludedFromKanban = (v) => ((v.Status || '').toUpperCase().includes('NEXT-YEAR'));
+        const statusIncludes = (v, token) => ((v.Status || '').toUpperCase().includes(token));
         // Group venues by status, sort by distance (closest first)
-        const canvasVenues = this.venues.filter(v => !excludedFromKanban(v) && (v.Status || '').includes('CANVAS'));
-        const followUpVenues = this.venues.filter(v => !excludedFromKanban(v) && (v.Status || '').includes('FOLLOW-UP'));
-        const bookedVenues = this.venues.filter(v => !excludedFromKanban(v) && (v.Status || '').includes('BOOKED'));
-        const bookAgainVenues = this.venues.filter(v => !excludedFromKanban(v) && (v.Status || '').includes('BOOK-AGAIN'));
+        const canvasVenues = this.venues.filter(v => !excludedFromKanban(v) && statusIncludes(v, 'CANVAS'));
+        const contactVenues = this.venues.filter(v => !excludedFromKanban(v) && statusIncludes(v, 'CONTACT'));
+        const followUpVenues = this.venues.filter(v => !excludedFromKanban(v) && statusIncludes(v, 'FOLLOW-UP'));
+        const bookedVenues = this.venues.filter(v => !excludedFromKanban(v) && statusIncludes(v, 'BOOKED') && !statusIncludes(v, 'BOOK-AGAIN'));
+        const bookAgainVenues = this.venues.filter(v => !excludedFromKanban(v) && statusIncludes(v, 'BOOK-AGAIN'));
         const nextYearVenues = this.venues.filter(v => excludedFromKanban(v));
 
         const sortByDistanceClosestFirst = (a, b) => (this.getDistanceNumeric(a) - this.getDistanceNumeric(b));
-        const columns = [canvasContent, followUpContent, bookedContent, bookAgainContent, nextYearContent];
-        [canvasVenues.sort(sortByDistanceClosestFirst), followUpVenues.sort(sortByDistanceClosestFirst), bookedVenues.sort(sortByDistanceClosestFirst), bookAgainVenues.sort(sortByDistanceClosestFirst), nextYearVenues.sort(sortByDistanceClosestFirst)].forEach((venueList, i) => {
+        const columns = [canvasContent, contactContent, followUpContent, bookedContent, bookAgainContent, nextYearContent];
+        const venueLists = [
+            canvasVenues.sort(sortByDistanceClosestFirst),
+            contactVenues.sort(sortByDistanceClosestFirst),
+            followUpVenues.sort(sortByDistanceClosestFirst),
+            bookedVenues.sort(sortByDistanceClosestFirst),
+            bookAgainVenues.sort(sortByDistanceClosestFirst),
+            nextYearVenues.sort(sortByDistanceClosestFirst)
+        ];
+        venueLists.forEach((venueList, i) => {
             const column = columns[i];
             venueList.forEach(venue => {
-                const card = this.createKanbanCard(venue, { isFollowUpColumn: i === 1, isNextYearColumn: i === 4, showNotes: i === 0 || i === 1 });
+                const card = this.createKanbanCard(venue, {
+                    isFollowUpColumn: i === 2,
+                    isNextYearColumn: i === 5,
+                    showNotes: i === 0 || i === 1 || i === 2
+                });
                 if (card) column.appendChild(card);
             });
         });
         // Re-apply column search filters (in case user had typed before board refreshed)
-        ['canvasSearch', 'followUpSearch', 'bookedSearch', 'bookAgainSearch', 'nextYearSearch'].forEach((searchId, i) => {
+        ['canvasSearch', 'contactSearch', 'followUpSearch', 'bookedSearch', 'bookAgainSearch', 'nextYearSearch'].forEach((searchId, i) => {
             const searchEl = document.getElementById(searchId);
             const contentEl = columns[i];
             if (searchEl && contentEl) this.filterKanbanColumn(contentEl, searchEl.value.trim());
@@ -3498,6 +3519,9 @@ class SimpleCRM {
         const venueNotes = (venue.Notes || '').trim();
         const contactLinksHtml = this.getVenueContactLinksHtml(venue);
         const monthsOutHtml = this.getTimelineMonthsOutHtml(venueTimeline);
+        const metaRowHtml = (contactLinksHtml || monthsOutHtml)
+            ? `<div class="kanban-card-meta">${contactLinksHtml}${monthsOutHtml}</div>`
+            : '';
         const nextYearBtnHtml = isFollowUpColumn
             ? `<button class="venue-action-btn next-year-action" title="Set status to NEXT-YEAR (Next-Year column)">
                     <i class="fas fa-calendar"></i>
@@ -3505,7 +3529,8 @@ class SimpleCRM {
             : '';
         card.innerHTML = `
             <div class="kanban-card-info">
-                <span class="venue-name">${this.escapeHtml(venueName)}${contactLinksHtml}${monthsOutHtml}</span>
+                <span class="venue-name">${this.escapeHtml(venueName)}</span>
+                ${metaRowHtml}
                 ${locationHtml}${distanceHtml}
                 ${(venueTimeline || venueType) ? `<span class="venue-timeline">${venueTimeline ? this.escapeHtml(venueTimeline) : ''}${venueTimeline && venueType ? ' · ' : ''}${venueType ? this.escapeHtml(venueType) : ''}</span>` : ''}
             </div>
@@ -3819,10 +3844,13 @@ class SimpleCRM {
         const raw = (venue.Status || '').trim();
         const currentStatus = raw.toUpperCase();
         let newStatus = '';
-        // No status or NEXT-YEAR = go to first stage (CANVAS). Pipeline: CANVAS -> FOLLOW-UP -> BOOKED -> BOOK-AGAIN -> (loop) CANVAS.
+        // No status or NEXT-YEAR = go to first stage (CANVAS).
+        // Pipeline: CANVAS -> CONTACT -> FOLLOW-UP -> BOOKED -> BOOK-AGAIN -> (loop) CANVAS.
         if (!currentStatus || currentStatus.includes('BOOK-AGAIN') || currentStatus.includes('NEXT-YEAR')) {
             newStatus = 'CANVAS';
         } else if (currentStatus.includes('CANVAS')) {
+            newStatus = 'CONTACT';
+        } else if (currentStatus.includes('CONTACT')) {
             newStatus = 'FOLLOW-UP';
         } else if (currentStatus.includes('FOLLOW-UP')) {
             newStatus = 'BOOKED';
@@ -3838,33 +3866,29 @@ class SimpleCRM {
     updateKanbanCounts() {
         // Check if kanban elements exist
         const canvasContent = document.getElementById('canvasContent');
+        const contactContent = document.getElementById('contactContent');
         const followUpContent = document.getElementById('followUpContent');
         const bookedContent = document.getElementById('bookedContent');
         const bookAgainContent = document.getElementById('bookAgainContent');
         const nextYearContent = document.getElementById('nextYearContent');
         const canvasCount = document.getElementById('canvasCount');
+        const contactCount = document.getElementById('contactCount');
         const followUpCount = document.getElementById('followUpCount');
         const bookedCount = document.getElementById('bookedCount');
         const bookAgainCount = document.getElementById('bookAgainCount');
         const nextYearCount = document.getElementById('nextYearCount');
         
-        if (!canvasContent || !followUpContent || !bookedContent || !bookAgainContent || !nextYearContent ||
-            !canvasCount || !followUpCount || !bookedCount || !bookAgainCount || !nextYearCount) {
+        if (!canvasContent || !contactContent || !followUpContent || !bookedContent || !bookAgainContent || !nextYearContent ||
+            !canvasCount || !contactCount || !followUpCount || !bookedCount || !bookAgainCount || !nextYearCount) {
             return; // Kanban board not ready yet
         }
         
-        const canvasCountValue = canvasContent.children.length;
-        const followUpCountValue = followUpContent.children.length;
-        const bookedCountValue = bookedContent.children.length;
-        const bookAgainCountValue = bookAgainContent.children.length;
-        const nextYearCountValue = nextYearContent.children.length;
-        
-        canvasCount.textContent = canvasCountValue;
-        followUpCount.textContent = followUpCountValue;
-        bookedCount.textContent = bookedCountValue;
-        bookAgainCount.textContent = bookAgainCountValue;
-        nextYearCount.textContent = nextYearCountValue;
-        
+        canvasCount.textContent = canvasContent.children.length;
+        contactCount.textContent = contactContent.children.length;
+        followUpCount.textContent = followUpContent.children.length;
+        bookedCount.textContent = bookedContent.children.length;
+        bookAgainCount.textContent = bookAgainContent.children.length;
+        nextYearCount.textContent = nextYearContent.children.length;
     }
 
 
