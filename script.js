@@ -3491,6 +3491,7 @@ class SimpleCRM {
             : '';
         const venueNotes = (venue.Notes || '').trim();
         const contactLinksHtml = this.getVenueContactLinksHtml(venue);
+        const monthsOutHtml = this.getTimelineMonthsOutHtml(venueTimeline);
         const nextYearBtnHtml = isFollowUpColumn
             ? `<button class="venue-action-btn next-year-action" title="Set status to NEXT-YEAR (Next-Year column)">
                     <i class="fas fa-calendar"></i>
@@ -3498,9 +3499,9 @@ class SimpleCRM {
             : '';
         card.innerHTML = `
             <div class="kanban-card-info">
-                <span class="venue-name">${venueName}${contactLinksHtml}</span>
+                <span class="venue-name">${this.escapeHtml(venueName)}${contactLinksHtml}${monthsOutHtml}</span>
                 ${locationHtml}${distanceHtml}
-                ${(venueTimeline || venueType) ? `<span class="venue-timeline">${venueTimeline ? this.formatTimelineWithMonthsOut(venueTimeline) : ''}${venueTimeline && venueType ? ' · ' : ''}${venueType ? this.escapeHtml(venueType) : ''}</span>` : ''}
+                ${(venueTimeline || venueType) ? `<span class="venue-timeline">${venueTimeline ? this.escapeHtml(venueTimeline) : ''}${venueTimeline && venueType ? ' · ' : ''}${venueType ? this.escapeHtml(venueType) : ''}</span>` : ''}
             </div>
             <div class="venue-actions">
                 <button class="venue-action-btn edit-action" title="Edit">
@@ -3650,6 +3651,24 @@ class SimpleCRM {
             }
             menu.appendChild(item);
         });
+
+        const hasStatus = !!(venue.Status || '').trim();
+        const removeItem = document.createElement('button');
+        removeItem.type = 'button';
+        removeItem.className = 'stage-picker-item stage-picker-remove' + (!hasStatus ? ' current' : '');
+        removeItem.setAttribute('role', 'menuitem');
+        removeItem.textContent = '(Remove)';
+        if (!hasStatus) {
+            removeItem.disabled = true;
+        } else {
+            removeItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeStagePickerMenu();
+                if (onSelect) onSelect('');
+            });
+        }
+        menu.appendChild(removeItem);
 
         document.body.appendChild(menu);
 

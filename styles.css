@@ -649,13 +649,17 @@ header p {
     background: #b83280;
 }
 
-.venue-count {
-    background: rgba(255, 255, 255, 0.2);
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 14px;
-    min-width: 24px;
+.kanban-header .venue-count {
+    background: #ffffff;
+    color: #1a202c;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 800;
+    min-width: 28px;
     text-align: center;
+    line-height: 1.2;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .kanban-column-search {
@@ -777,6 +781,15 @@ header p {
     font-style: italic;
     margin-bottom: 0;
     line-height: 1.2;
+}
+
+.kanban-card-info .timeline-months-out {
+    margin-left: 6px;
+    font-size: 10px;
+    min-width: 16px;
+    height: 16px;
+    font-style: normal;
+    vertical-align: middle;
 }
 
 .kanban-card-info .venue-notes {
@@ -1425,6 +1438,24 @@ td {
 .stage-picker-item.current:hover,
 .stage-picker-item:disabled:hover {
     background: transparent;
+}
+
+.stage-picker-remove {
+    border-top: 1px solid #4a5568;
+    margin-top: 4px;
+    padding-top: 10px;
+    color: #fc8181;
+}
+
+.stage-picker-remove:hover:not(:disabled) {
+    background: #4a5568;
+    color: #feb2b2;
+}
+
+.stage-picker-remove.current,
+.stage-picker-remove:disabled {
+    color: #718096;
+    font-weight: 400;
 }
 
 .delete-btn {
