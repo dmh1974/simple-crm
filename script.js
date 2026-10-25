@@ -2454,12 +2454,13 @@ class SimpleCRM {
             
             if (header === 'Status') {
                 input = document.createElement('select');
-                
-                // Get unique values for Status from all venues
-                const uniqueValues = [...new Set(this.venues.map(v => v[header]).filter(Boolean))];
-                
-                // Sort values alphabetically
-                uniqueValues.sort();
+
+                // Always include every kanban stage, then any extra values already in the data
+                const stageValues = KANBAN_STAGES.map(stage => stage.status);
+                const extraValues = [...new Set(this.venues.map(v => v[header]).filter(Boolean))]
+                    .filter(value => !stageValues.some(stage => stage.toUpperCase() === String(value).toUpperCase()))
+                    .sort();
+                const uniqueValues = [...stageValues, ...extraValues];
                 
                 // Add empty option
                 const emptyOption = document.createElement('option');

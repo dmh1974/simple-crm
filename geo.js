@@ -17606,4 +17606,5 @@ US,New York,Pine Hill,42.1126,-74.4782
 US,New York,Halfmoon,42.8601,-73.7290
 US,New York,Rhinecliff,41.9268,-73.9454
 US,New York,Pine Island,41.2943,-74.4446
-US,New York,Morris,42.5487,-75.2452`
+US,New York,Morris,42.5487,-75.2452
+US,New York,Mt Morris,42.72562,-77.87417`
