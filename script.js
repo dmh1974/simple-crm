@@ -777,12 +777,16 @@ class SimpleCRM {
         const monthsOut = this.getTimelineMonthsOut(timeline, date);
         if (monthsOut === null) return '';
 
-        const monthsTitle = monthsOut === 0
-            ? (this.parseTimelineMonths(timeline)?.yearRound ? 'In season all year' : 'In season now')
-            : `${monthsOut} month${monthsOut === 1 ? '' : 's'} out`;
-        const nowClass = monthsOut === 0 ? ' now' : '';
+        const yearRound = !!this.parseTimelineMonths(timeline)?.yearRound;
+        const monthsTitle = yearRound
+            ? 'In season all year'
+            : (monthsOut === 0
+                ? 'In season now'
+                : `${monthsOut} month${monthsOut === 1 ? '' : 's'} out`);
+        const stateClass = yearRound ? ' year-round' : (monthsOut === 0 ? ' now' : '');
+        const label = yearRound ? 'A' : (monthsOut === 0 ? 'I' : monthsOut);
 
-        return ` <span class="timeline-months-out${nowClass}" title="${monthsTitle}">${monthsOut}</span>`;
+        return ` <span class="timeline-months-out${stateClass}" title="${monthsTitle}">${label}</span>`;
     }
 
     formatTimelineWithMonthsOut(timeline) {

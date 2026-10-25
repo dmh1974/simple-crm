@@ -1031,6 +1031,11 @@ header p {
     color: white;
 }
 
+.timeline-months-out.year-round {
+    background: #805ad5;
+    color: white;
+}
+
 .popup-venue-info .venue-status {
     align-self: flex-start;
     margin-bottom: 2px;
