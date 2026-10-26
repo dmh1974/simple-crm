@@ -1170,7 +1170,7 @@ class SimpleCRM {
             this.getDistanceInMiles(home[0], home[1], b.coords[0], b.coords[1])
         );
 
-        const maxStops = 50;
+        const maxStops = 99;
         let omittedCount = 0;
         if (stops.length > maxStops) {
             omittedCount = stops.length - maxStops;
@@ -1198,7 +1198,7 @@ class SimpleCRM {
     showTourStatus(collected, trip, stopCount) {
         const notes = [];
         if (collected.omittedCount > 0) {
-            notes.push(`Routed the 50 booked cities closest to the start. ${collected.omittedCount} ${collected.omittedCount === 1 ? 'city was' : 'cities were'} left out.`);
+            notes.push(`Routed the ${collected.stops.length} cities closest to the start. ${collected.omittedCount} ${collected.omittedCount === 1 ? 'city was' : 'cities were'} left out.`);
         }
         if (collected.skippedCount > 0) {
             notes.push(`${collected.skippedCount} booked ${collected.skippedCount === 1 ? 'venue had' : 'venues had'} no matching city and ${collected.skippedCount === 1 ? 'was' : 'were'} left off the route.`);
