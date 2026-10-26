@@ -301,8 +301,6 @@ class SimpleCRM {
             console.warn('Map not initialized yet, skipping update');
             return;
         }
-
-        this.clearTourRoute();
         
         // Clear existing markers
         this.markers.forEach(marker => this.map.removeLayer(marker));
