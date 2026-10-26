@@ -55,6 +55,7 @@ class SimpleCRM {
         
         // Map status separation
         this.separateByStatus = false;
+        this.tourStages = ['BOOKED'];
 
         // Distance calculation - default reference location
         this.defaultDistanceLocation = 'Saranac Lake, NY';
@@ -168,6 +169,12 @@ class SimpleCRM {
         document.getElementById('resetLocationBtn').addEventListener('click', () => this.resetMapLocation());
         document.getElementById('routeBookedBtn').addEventListener('click', () => this.routeBookedTour());
         document.getElementById('clearRouteBtn').addEventListener('click', () => this.clearTourRoute());
+        document.querySelectorAll('.route-stage-checkbox').forEach(box => {
+            box.addEventListener('change', () => {
+                this.tourStages = this.readTourStages();
+                this.saveToLocalStorage();
+            });
+        });
         
         // Location search
         document.getElementById('locationSearch').addEventListener('input', (e) => this.handleLocationSearch(e.target.value));
@@ -1025,7 +1032,7 @@ class SimpleCRM {
         btn.disabled = busy;
         btn.innerHTML = busy
             ? '<i class="fas fa-spinner fa-spin"></i> Routing'
-            : '<i class="fas fa-route"></i> Route Booked';
+            : '<i class="fas fa-route"></i> Route';
     }
 
     showTourSummary(html) {
@@ -1076,12 +1083,45 @@ class SimpleCRM {
         return [stop.label, ...(stop.extraLabels || [])].filter(Boolean).join(' / ');
     }
 
+    readTourStages() {
+        const known = new Set(KANBAN_STAGES.map(stage => stage.status));
+        return [...document.querySelectorAll('.route-stage-checkbox:checked')]
+            .map(box => box.value)
+            .filter(status => known.has(status));
+    }
+
+    applyTourStageCheckboxes() {
+        const selected = new Set(this.tourStages);
+        document.querySelectorAll('.route-stage-checkbox').forEach(box => {
+            box.checked = selected.has(box.value);
+        });
+    }
+
+    venueMatchesTourStage(venue, stage) {
+        const status = (venue.Status || '').toUpperCase();
+        const includes = (token) => status.includes(token);
+        if (stage === 'NEXT-YEAR') return includes('NEXT-YEAR');
+        if (includes('NEXT-YEAR')) return false;
+        if (stage === 'BOOK-AGAIN') return includes('BOOK-AGAIN');
+        if (stage === 'BOOKED') return includes('BOOKED') && !includes('BOOK-AGAIN');
+        return includes(stage);
+    }
+
     collectBookedTourStops() {
+        this.tourStages = this.readTourStages();
         const homeLabel = this.defaultDistanceLocation;
         const home = this.geocodeLocation(homeLabel);
         if (!home) {
             return { error: `Could not locate “${homeLabel}”. Set Distance from to a city and state.` };
         }
+
+        const selected = this.tourStages.filter(status => KANBAN_STAGES.some(stage => stage.status === status));
+        if (selected.length === 0) {
+            return { error: 'Choose at least one column to route.' };
+        }
+        const selectedLabels = KANBAN_STAGES
+            .filter(stage => selected.includes(stage.status))
+            .map(stage => stage.label);
 
         const samePoint = (a, b) => Math.abs(a[0] - b[0]) < 1e-5 && Math.abs(a[1] - b[1]) < 1e-5;
         const homeVenues = [];
@@ -1089,9 +1129,8 @@ class SimpleCRM {
         const seen = new Map();
         let skippedCount = 0;
 
-        for (const venue of this.filteredVenues) {
-            const status = (venue.Status || '').toUpperCase();
-            if (!status.includes('BOOKED') || status.includes('BOOK-AGAIN')) continue;
+        for (const venue of this.venues) {
+            if (!selected.some(stage => this.venueMatchesTourStage(venue, stage))) continue;
 
             const city = (venue.City || '').trim();
             const state = (venue.State || '').trim();
@@ -1118,11 +1157,12 @@ class SimpleCRM {
             stop.venues.push(venue);
         }
 
+        const columnList = selectedLabels.join(', ');
         if (stops.length === 0 && homeVenues.length === 0) {
-            return { error: 'No booked venues in the current filters.' };
+            return { error: `No ${columnList} venues to route.` };
         }
         if (stops.length === 0) {
-            return { error: 'Booked venues are all in the start city, so there is no drive to route.' };
+            return { error: `${columnList} venues are all in the start city, so there is no drive to route.` };
         }
 
         stops.sort((a, b) =>
@@ -4232,6 +4272,7 @@ class SimpleCRM {
                 perimeterMiles: this.perimeterMiles,
                 minVenueCount: this.minVenueCount,
                 separateByStatus: this.separateByStatus,
+                tourStages: this.tourStages,
                 defaultDistanceLocation: this.defaultDistanceLocation,
                 mapCenter: this.mapCenter,
                 mapZoom: this.mapZoom,
@@ -4260,6 +4301,10 @@ class SimpleCRM {
                 this.perimeterMiles = data.perimeterMiles !== undefined ? data.perimeterMiles : 2000;
                 this.minVenueCount = data.minVenueCount || 1;
                 this.separateByStatus = data.separateByStatus || false;
+                const knownStages = new Set(KANBAN_STAGES.map(stage => stage.status));
+                this.tourStages = Array.isArray(data.tourStages)
+                    ? data.tourStages.filter(status => knownStages.has(status))
+                    : ['BOOKED'];
                 this.defaultDistanceLocation = data.defaultDistanceLocation || 'Saranac Lake, NY';
                 this.mapCenter = data.mapCenter || [43.2994, -74.2179];
                 this.mapZoom = data.mapZoom || 7;
@@ -4275,6 +4320,7 @@ class SimpleCRM {
                 if (separateByStatusEl) {
                     separateByStatusEl.checked = this.separateByStatus;
                 }
+                this.applyTourStageCheckboxes();
                 const distanceFromInputEl = document.getElementById('distanceFromInput');
                 if (distanceFromInputEl) {
                     distanceFromInputEl.value = this.defaultDistanceLocation;

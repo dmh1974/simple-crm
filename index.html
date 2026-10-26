@@ -177,10 +177,18 @@
                     <i class="fas fa-home"></i>
                     Reset Location
                 </button>
-                <button id="routeBookedBtn" type="button" class="btn btn-small btn-secondary" title="Driving route through booked venues, starting from the Distance from location">
+                <button id="routeBookedBtn" type="button" class="btn btn-small btn-secondary" title="Driving route through the selected kanban columns, starting from the Distance from location">
                     <i class="fas fa-route"></i>
-                    Route Booked
+                    Route
                 </button>
+                <div class="route-stage-filters" role="group" aria-label="Kanban columns to route">
+                    <label class="map-checkbox-label" for="routeStageCanvas"><input type="checkbox" id="routeStageCanvas" class="route-stage-checkbox" value="CANVAS"> Canvas</label>
+                    <label class="map-checkbox-label" for="routeStageContact"><input type="checkbox" id="routeStageContact" class="route-stage-checkbox" value="CONTACT"> Contact</label>
+                    <label class="map-checkbox-label" for="routeStageFollowUp"><input type="checkbox" id="routeStageFollowUp" class="route-stage-checkbox" value="FOLLOW-UP"> Follow-Up</label>
+                    <label class="map-checkbox-label" for="routeStageBooked"><input type="checkbox" id="routeStageBooked" class="route-stage-checkbox" value="BOOKED" checked> Booked</label>
+                    <label class="map-checkbox-label" for="routeStageBookAgain"><input type="checkbox" id="routeStageBookAgain" class="route-stage-checkbox" value="BOOK-AGAIN"> Book Again</label>
+                    <label class="map-checkbox-label" for="routeStageNextYear"><input type="checkbox" id="routeStageNextYear" class="route-stage-checkbox" value="NEXT-YEAR"> Next Year</label>
+                </div>
                 <button id="clearRouteBtn" type="button" class="btn btn-small btn-secondary" title="Remove the driving route" hidden>
                     <i class="fas fa-times"></i>
                     Clear Route
