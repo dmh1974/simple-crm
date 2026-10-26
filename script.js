@@ -23,6 +23,8 @@ class SimpleCRM {
         this.hiddenColumns = new Set();
         this.map = null;
         this.markers = [];
+        this.tourLayer = null;
+        this.tourRequestId = 0;
         this.geoData = {};
         this.mapReady = false;
         
@@ -164,6 +166,8 @@ class SimpleCRM {
         
         // Reset location button
         document.getElementById('resetLocationBtn').addEventListener('click', () => this.resetMapLocation());
+        document.getElementById('routeBookedBtn').addEventListener('click', () => this.routeBookedTour());
+        document.getElementById('clearRouteBtn').addEventListener('click', () => this.clearTourRoute());
         
         // Location search
         document.getElementById('locationSearch').addEventListener('input', (e) => this.handleLocationSearch(e.target.value));
@@ -297,6 +301,8 @@ class SimpleCRM {
             console.warn('Map not initialized yet, skipping update');
             return;
         }
+
+        this.clearTourRoute();
         
         // Clear existing markers
         this.markers.forEach(marker => this.map.removeLayer(marker));
@@ -1009,6 +1015,276 @@ class SimpleCRM {
         this.mapCenter = defaultCenter;
         this.mapZoom = defaultZoom;
         this.saveToLocalStorage();
+    }
+
+    setRouteButtonState(busy) {
+        const btn = document.getElementById('routeBookedBtn');
+        if (!btn) return;
+        btn.disabled = busy;
+        btn.innerHTML = busy
+            ? '<i class="fas fa-spinner fa-spin"></i> Routing'
+            : '<i class="fas fa-route"></i> Route Booked';
+    }
+
+    showTourSummary(html) {
+        const el = document.getElementById('tourRouteSummary');
+        if (!el) return;
+        el.innerHTML = html;
+        el.hidden = false;
+    }
+
+    clearTourRoute() {
+        this.tourRequestId += 1;
+        if (this.tourLayer && this.map) {
+            this.map.removeLayer(this.tourLayer);
+        }
+        this.tourLayer = null;
+        const summary = document.getElementById('tourRouteSummary');
+        if (summary) {
+            summary.hidden = true;
+            summary.innerHTML = '';
+        }
+        const clearBtn = document.getElementById('clearRouteBtn');
+        if (clearBtn) clearBtn.hidden = true;
+        this.setRouteButtonState(false);
+    }
+
+    ensureTourPanes() {
+        if (!this.map.getPane('tourPane')) {
+            // Above venue markers (600) and below the numbered stop badges (650)
+            this.map.createPane('tourPane').style.zIndex = 620;
+        }
+        if (!this.map.getPane('tourStopPane')) {
+            this.map.createPane('tourStopPane').style.zIndex = 650;
+        }
+    }
+
+    formatTourDuration(seconds) {
+        if (!Number.isFinite(seconds) || seconds < 60) return '0 min';
+        const hours = seconds / 3600;
+        if (hours < 1) return `${Math.round(seconds / 60)} min`;
+        return `${hours.toFixed(1)} hr`;
+    }
+
+    formatTourMiles(meters) {
+        return `${Math.round(meters / 1609.344)} mi`;
+    }
+
+    tourStopLabel(stop) {
+        return [stop.label, ...(stop.extraLabels || [])].filter(Boolean).join(' / ');
+    }
+
+    formatTourVenueNames(venues) {
+        const names = venues.map(venue => venue.Venue || 'Unknown venue');
+        const shown = names.slice(0, 4).map(name => this.escapeHtml(name)).join(', ');
+        const extra = names.length > 4 ? ` +${names.length - 4} more` : '';
+        return `${shown}${extra}`;
+    }
+
+    collectBookedTourStops() {
+        const homeLabel = this.defaultDistanceLocation;
+        const home = this.geocodeLocation(homeLabel);
+        if (!home) {
+            return { error: `Could not locate “${homeLabel}”. Set Distance from to a city and state.` };
+        }
+
+        const samePoint = (a, b) => Math.abs(a[0] - b[0]) < 1e-5 && Math.abs(a[1] - b[1]) < 1e-5;
+        const homeVenues = [];
+        const stops = [];
+        const seen = new Map();
+        let skippedCount = 0;
+
+        for (const venue of this.filteredVenues) {
+            const status = (venue.Status || '').toUpperCase();
+            if (!status.includes('BOOKED') || status.includes('BOOK-AGAIN')) continue;
+
+            const city = (venue.City || '').trim();
+            const state = (venue.State || '').trim();
+            const label = [city, state].filter(Boolean).join(', ');
+            const coords = label ? this.geocodeLocation(label) : null;
+            if (!coords) {
+                skippedCount += 1;
+                continue;
+            }
+            if (samePoint(coords, home)) {
+                homeVenues.push(venue);
+                continue;
+            }
+
+            const key = `${coords[0]},${coords[1]}`;
+            let stop = seen.get(key);
+            if (!stop) {
+                stop = { coords, label, extraLabels: [], venues: [] };
+                seen.set(key, stop);
+                stops.push(stop);
+            } else if (label && label !== stop.label && !stop.extraLabels.includes(label)) {
+                stop.extraLabels.push(label);
+            }
+            stop.venues.push(venue);
+        }
+
+        if (stops.length === 0 && homeVenues.length === 0) {
+            return { error: 'No booked venues in the current filters.' };
+        }
+        if (stops.length === 0) {
+            return { error: 'Booked venues are all in the start city, so there is no drive to route.' };
+        }
+
+        stops.sort((a, b) =>
+            this.getDistanceInMiles(home[0], home[1], a.coords[0], a.coords[1]) -
+            this.getDistanceInMiles(home[0], home[1], b.coords[0], b.coords[1])
+        );
+
+        const maxStops = 50;
+        let omittedCount = 0;
+        if (stops.length > maxStops) {
+            omittedCount = stops.length - maxStops;
+            stops.length = maxStops;
+        }
+
+        return { home, homeLabel, homeVenues, stops, omittedCount, skippedCount };
+    }
+
+    async fetchOsrmTrip(collected) {
+        const points = [collected.home, ...collected.stops.map(stop => stop.coords)];
+        const coordStr = points.map(([lat, lng]) => `${lng},${lat}`).join(';');
+        const url = `https://router.project-osrm.org/trip/v1/driving/${coordStr}?source=first&roundtrip=false&geometries=geojson&overview=full`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            return { ok: false, error: 'The routing service returned an error. Try fewer booked cities.' };
+        }
+        const data = await response.json();
+        if (data.code !== 'Ok' || !data.trips || !data.trips[0]) {
+            return { ok: false, error: data.message || 'No driving route was found for these cities.' };
+        }
+        return { ok: true, trip: data.trips[0], waypoints: data.waypoints || [] };
+    }
+
+    buildTourSummaryHtml(collected, trip, rows) {
+        const { homeLabel, omittedCount, skippedCount } = collected;
+        const stopCount = rows.filter(row => row.kind === 'stop').length;
+        const stats = `${stopCount} stop${stopCount === 1 ? '' : 's'} · ${this.formatTourMiles(trip.distance)} · ${this.formatTourDuration(trip.duration)} from ${this.escapeHtml(homeLabel)}`;
+        const items = rows.map(row => {
+            if (row.kind === 'start') {
+                const names = row.venues.length
+                    ? `<span class="tour-stop-venues">${this.formatTourVenueNames(row.venues)}</span>`
+                    : '';
+                return `<li class="tour-route-start"><span class="tour-stop-index tour-stop-index-start">S</span><span class="tour-stop-detail"><strong>${this.escapeHtml(homeLabel)}</strong>${names}</span></li>`;
+            }
+            const leg = row.leg ? `<span class="tour-stop-leg">${this.formatTourMiles(row.leg.distance)} · ${this.formatTourDuration(row.leg.duration)} drive</span>` : '';
+            return `<li><span class="tour-stop-index">${row.number}</span><span class="tour-stop-detail"><strong>${this.escapeHtml(this.tourStopLabel(row.stop))}</strong><span class="tour-stop-venues">${this.formatTourVenueNames(row.stop.venues)}</span>${leg}</span></li>`;
+        }).join('');
+        const notes = [];
+        if (omittedCount > 0) {
+            notes.push(`Routed the 50 booked cities closest to the start. ${omittedCount} ${omittedCount === 1 ? 'city was' : 'cities were'} left out.`);
+        }
+        if (skippedCount > 0) {
+            notes.push(`${skippedCount} booked ${skippedCount === 1 ? 'venue had' : 'venues had'} no matching city and ${skippedCount === 1 ? 'was' : 'were'} left off the route.`);
+        }
+        const noteHtml = notes.map(note => `<p class="tour-route-note">${this.escapeHtml(note)}</p>`).join('');
+        return `<div class="tour-route-stats">${stats}</div><ol class="tour-route-stops">${items}</ol>${noteHtml}`;
+    }
+
+    drawBookedTour(collected, trip, waypoints) {
+        const sequence = waypoints
+            .map((waypoint, inputIndex) => ({ inputIndex, visit: waypoint.waypoint_index }))
+            .sort((a, b) => a.visit - b.visit);
+
+        const rows = [];
+        let stopNumber = 0;
+        sequence.forEach((item, index) => {
+            const leg = index > 0 ? (trip.legs || [])[index - 1] : null;
+            if (item.inputIndex === 0) {
+                rows.push({ kind: 'start', venues: collected.homeVenues, leg });
+                return;
+            }
+            const stop = collected.stops[item.inputIndex - 1];
+            if (!stop) return;
+            stopNumber += 1;
+            rows.push({ kind: 'stop', stop, number: stopNumber, leg });
+        });
+
+        if (!rows.some(row => row.kind === 'stop')) {
+            this.showTourSummary('<p class="tour-route-message is-error">No driving route was found for these cities.</p>');
+            return;
+        }
+
+        this.ensureTourPanes();
+        this.tourLayer = L.featureGroup().addTo(this.map);
+        const casing = L.geoJSON(trip.geometry, {
+            pane: 'tourPane',
+            interactive: false,
+            style: { color: '#ffffff', weight: 8, opacity: 0.95 }
+        });
+        const line = L.geoJSON(trip.geometry, {
+            pane: 'tourPane',
+            style: { color: '#e11d48', weight: 4, opacity: 0.95 }
+        });
+        this.tourLayer.addLayer(casing);
+        const stopCount = rows.filter(row => row.kind === 'stop').length;
+        line.bindPopup(`${stopCount} stop${stopCount === 1 ? '' : 's'} · ${this.formatTourMiles(trip.distance)} · ${this.formatTourDuration(trip.duration)}`);
+        this.tourLayer.addLayer(line);
+
+        rows.forEach(row => {
+            if (row.kind !== 'stop') return;
+            const marker = L.marker(row.stop.coords, {
+                pane: 'tourStopPane',
+                icon: L.divIcon({
+                    className: 'tour-stop-marker',
+                    html: String(row.number),
+                    iconSize: [26, 26],
+                    iconAnchor: [13, 13],
+                    popupAnchor: [0, -14]
+                })
+            });
+            const names = row.stop.venues
+                .map(venue => this.escapeHtml(venue.Venue || 'Unknown venue'))
+                .join('<br>');
+            marker.bindPopup(`<strong>${row.number}. ${this.escapeHtml(this.tourStopLabel(row.stop))}</strong><br>${names}`);
+            this.tourLayer.addLayer(marker);
+        });
+
+        const clearBtn = document.getElementById('clearRouteBtn');
+        if (clearBtn) clearBtn.hidden = false;
+        this.showTourSummary(this.buildTourSummaryHtml(collected, trip, rows));
+
+        const bounds = this.tourLayer.getBounds();
+        if (bounds.isValid()) {
+            this.map.fitBounds(bounds.pad(0.15));
+        }
+    }
+
+    async routeBookedTour() {
+        this.clearTourRoute();
+        const requestId = this.tourRequestId;
+        this.setRouteButtonState(true);
+        this.showTourSummary('<p class="tour-route-message">Routing booked venues…</p>');
+
+        try {
+            const collected = this.collectBookedTourStops();
+            if (requestId !== this.tourRequestId) return;
+            if (collected.error) {
+                this.showTourSummary(`<p class="tour-route-message is-error">${this.escapeHtml(collected.error)}</p>`);
+                return;
+            }
+
+            const result = await this.fetchOsrmTrip(collected);
+            if (requestId !== this.tourRequestId) return;
+            if (!result.ok) {
+                this.showTourSummary(`<p class="tour-route-message is-error">${this.escapeHtml(result.error)}</p>`);
+                return;
+            }
+
+            this.drawBookedTour(collected, result.trip, result.waypoints);
+        } catch (error) {
+            if (requestId !== this.tourRequestId) return;
+            console.warn('Tour routing failed:', error);
+            this.showTourSummary('<p class="tour-route-message is-error">Could not reach the routing service. Check your connection and try again.</p>');
+        } finally {
+            if (requestId === this.tourRequestId) {
+                this.setRouteButtonState(false);
+            }
+        }
     }
 
     expandStateAbbreviations(location) {

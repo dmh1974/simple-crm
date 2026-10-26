@@ -177,11 +177,20 @@
                     <i class="fas fa-home"></i>
                     Reset Location
                 </button>
+                <button id="routeBookedBtn" type="button" class="btn btn-small btn-secondary" title="Driving route through booked venues, starting from the Distance from location">
+                    <i class="fas fa-route"></i>
+                    Route Booked
+                </button>
+                <button id="clearRouteBtn" type="button" class="btn btn-small btn-secondary" title="Remove the driving route" hidden>
+                    <i class="fas fa-times"></i>
+                    Clear Route
+                </button>
                 <div class="location-search-container">
                     <input type="text" id="locationSearch" placeholder="Type city, state..." autocomplete="off">
                     <div id="locationSearchResults" class="location-search-results"></div>
                 </div>
                 </div>
+                <div id="tourRouteSummary" class="tour-route-summary" hidden aria-live="polite"></div>
                 <div id="venueMap"></div>
             </div>
         </div>
