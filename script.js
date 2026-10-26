@@ -424,6 +424,77 @@ class SimpleCRM {
         }
     }
 
+    buildLocationPopupHtml(data) {
+        const count = data.venues.length;
+        const markerColor = data.color || '#667eea';
+        const place = [data.city, data.state].filter(Boolean).join(', ');
+        const driveLabel = data.driveLabel
+            ? `<p class="venue-count">${this.escapeHtml(data.driveLabel)}</p>`
+            : '';
+
+        return `
+            <div class="venue-popup">
+                <h4>${place}</h4>
+                ${data.statusLabel ? `<p class="popup-status-label" style="color:${markerColor};font-weight:600;margin:2px 0 4px;">${data.statusLabel}</p>` : ''}
+                <p class="venue-count">${count} venue${count > 1 ? 's' : ''}</p>
+                ${driveLabel}
+                <div class="popup-venue-list ${count > 1 ? 'scrollable' : ''}">
+                <ul style="text-align: left; margin: 5px 0; padding-left: 20px;">
+                        ${data.venues.map((venue) => {
+                            const venueName = venue.Venue || 'Unknown Venue';
+                            const city = venue.City || '';
+                            const state = venue.State || '';
+                            const locationStr = [city, state].filter(Boolean).join(', ');
+                            const venueType = venue.Type || '';
+                            const venueTimeline = venue.Timeline || '';
+                            const venueStatus = venue.Status || '';
+                            const venueDistance = this.getDistanceForVenue(venue);
+                            const locationAndDistance = locationStr
+                                ? (venueDistance !== '--' ? `${locationStr} (${venueDistance})` : locationStr)
+                                : (venueDistance !== '--' ? `(${venueDistance})` : '');
+                            const contactLinksHtml = this.getVenueContactLinksHtml(venue);
+                            const globalIndex = this.venues.findIndex(v => v === venue);
+                            return `
+                                <li class="popup-venue-item">
+                                    <div class="popup-venue-info">
+                                        <span class="venue-name">${venueName}${contactLinksHtml}</span>
+                                        ${venueStatus ? `<span class="venue-status ${this.getStatusClass(venueStatus)}">${venueStatus}</span>` : ''}
+                                        ${locationAndDistance ? `<span class="venue-location">${locationAndDistance}</span>` : ''}
+                                        ${(venueTimeline || venueType) ? `<span class="venue-timeline">${venueTimeline ? this.formatTimelineWithMonthsOut(venueTimeline) : ''}${venueTimeline && venueType ? ' · ' : ''}${venueType ? this.escapeHtml(venueType) : ''}</span>` : ''}
+                                    </div>
+                                    <div class="popup-actions">
+                                        <button class="action-btn edit-btn popup-edit-btn" data-venue-index="${globalIndex}" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="action-btn search-btn popup-search-btn" data-venue-index="${globalIndex}" title="Google Search">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                        <button class="action-btn copy-btn popup-copy-btn" data-venue-index="${globalIndex}" title="Copy">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                        <button class="action-btn delete-btn popup-delete-btn" data-venue-index="${globalIndex}" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        <button class="action-btn move-next-btn popup-move-next-btn" data-venue-index="${globalIndex}" title="Move to next stage (hover or long-press to choose stage)">
+                                            <i class="fas fa-arrow-right"></i>
+                                        </button>
+                                    </div>
+                                </li>
+                            `;
+                        }).join('')}
+                </ul>
+                </div>
+            </div>
+        `;
+    }
+
+    bindLocationPopup(layer, data) {
+        layer.bindPopup(this.buildLocationPopupHtml(data));
+        layer.on('popupopen', (e) => {
+            this.addPopupEventListeners(e.popup, data.venues);
+        });
+    }
+
     createLocationMarker(locationKey, data, offsetCoords) {
         try {
             // Geocode the location
@@ -432,8 +503,6 @@ class SimpleCRM {
             
             if (coordinates && coordinates.length === 2 && !isNaN(coordinates[0]) && !isNaN(coordinates[1])) {
                 const count = data.venues.length;
-                const venueNames = data.venues.map(v => v.Venue || 'Unknown Venue').filter(Boolean);
-                
                 const markerColor = data.color || '#667eea';
 
                 // Create custom marker with count
@@ -467,73 +536,8 @@ class SimpleCRM {
                 });
                 
                 const labelMarker = L.marker(coordinates, { icon: countLabel });
-                
-                // Create popup content with edit/delete buttons for each venue
-                const popupContent = `
-                    <div class="venue-popup">
-                        <h4>${data.city}, ${data.state}</h4>
-                        ${data.statusLabel ? `<p class="popup-status-label" style="color:${markerColor};font-weight:600;margin:2px 0 4px;">${data.statusLabel}</p>` : ''}
-                        <p class="venue-count">${count} venue${count > 1 ? 's' : ''}</p>
-                        <div class="popup-venue-list ${count > 1 ? 'scrollable' : ''}">
-                        <ul style="text-align: left; margin: 5px 0; padding-left: 20px;">
-                                ${data.venues.map((venue, venueIndex) => {
-                                    const venueName = venue.Venue || 'Unknown Venue';
-                                    const city = venue.City || '';
-                                    const state = venue.State || '';
-                                    const locationStr = [city, state].filter(Boolean).join(', ');
-                                    const venueType = venue.Type || '';
-                                    const venueTimeline = venue.Timeline || '';
-                                    const venueStatus = venue.Status || '';
-                                    const venueDistance = this.getDistanceForVenue(venue);
-                                    const locationAndDistance = locationStr
-                                        ? (venueDistance !== '--' ? `${locationStr} (${venueDistance})` : locationStr)
-                                        : (venueDistance !== '--' ? `(${venueDistance})` : '');
-                                    const contactLinksHtml = this.getVenueContactLinksHtml(venue);
-                                    const globalIndex = this.venues.findIndex(v => v === venue);
-                                    return `
-                                        <li class="popup-venue-item">
-                                            <div class="popup-venue-info">
-                                                <span class="venue-name">${venueName}${contactLinksHtml}</span>
-                                                ${venueStatus ? `<span class="venue-status ${this.getStatusClass(venueStatus)}">${venueStatus}</span>` : ''}
-                                                ${locationAndDistance ? `<span class="venue-location">${locationAndDistance}</span>` : ''}
-                                                ${(venueTimeline || venueType) ? `<span class="venue-timeline">${venueTimeline ? this.formatTimelineWithMonthsOut(venueTimeline) : ''}${venueTimeline && venueType ? ' · ' : ''}${venueType ? this.escapeHtml(venueType) : ''}</span>` : ''}
-                                            </div>
-                                            <div class="popup-actions">
-                                                <button class="action-btn edit-btn popup-edit-btn" data-venue-index="${globalIndex}" title="Edit">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                                <button class="action-btn search-btn popup-search-btn" data-venue-index="${globalIndex}" title="Google Search">
-                                                    <i class="fas fa-search"></i>
-                                                </button>
-                                                <button class="action-btn copy-btn popup-copy-btn" data-venue-index="${globalIndex}" title="Copy">
-                                                    <i class="fas fa-copy"></i>
-                                                </button>
-                                                <button class="action-btn delete-btn popup-delete-btn" data-venue-index="${globalIndex}" title="Delete">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                                <button class="action-btn move-next-btn popup-move-next-btn" data-venue-index="${globalIndex}" title="Move to next stage (hover or long-press to choose stage)">
-                                                    <i class="fas fa-arrow-right"></i>
-                                                </button>
-                                            </div>
-                                        </li>
-                                    `;
-                                }).join('')}
-                        </ul>
-                        </div>
-                    </div>
-                `;
-                
-                marker.bindPopup(popupContent);
-                labelMarker.bindPopup(popupContent);
-                
-                // Add event listeners for popup buttons after popup is opened
-                marker.on('popupopen', (e) => {
-                    this.addPopupEventListeners(e.popup, data.venues);
-                });
-                
-                labelMarker.on('popupopen', (e) => {
-                    this.addPopupEventListeners(e.popup, data.venues);
-                });
+                this.bindLocationPopup(marker, data);
+                this.bindLocationPopup(labelMarker, data);
                 
                 // Add markers to map
                 marker.addTo(this.map);
@@ -1072,13 +1076,6 @@ class SimpleCRM {
         return [stop.label, ...(stop.extraLabels || [])].filter(Boolean).join(' / ');
     }
 
-    formatTourVenueNames(venues) {
-        const names = venues.map(venue => venue.Venue || 'Unknown venue');
-        const shown = names.slice(0, 4).map(name => this.escapeHtml(name)).join(', ');
-        const extra = names.length > 4 ? ` +${names.length - 4} more` : '';
-        return `${shown}${extra}`;
-    }
-
     collectBookedTourStops() {
         const homeLabel = this.defaultDistanceLocation;
         const home = this.geocodeLocation(homeLabel);
@@ -1158,29 +1155,17 @@ class SimpleCRM {
         return { ok: true, trip: data.trips[0], waypoints: data.waypoints || [] };
     }
 
-    buildTourSummaryHtml(collected, trip, rows) {
-        const { homeLabel, omittedCount, skippedCount } = collected;
-        const stopCount = rows.filter(row => row.kind === 'stop').length;
-        const stats = `${stopCount} stop${stopCount === 1 ? '' : 's'} · ${this.formatTourMiles(trip.distance)} · ${this.formatTourDuration(trip.duration)} from ${this.escapeHtml(homeLabel)}`;
-        const items = rows.map(row => {
-            if (row.kind === 'start') {
-                const names = row.venues.length
-                    ? `<span class="tour-stop-venues">${this.formatTourVenueNames(row.venues)}</span>`
-                    : '';
-                return `<li class="tour-route-start"><span class="tour-stop-index tour-stop-index-start">S</span><span class="tour-stop-detail"><strong>${this.escapeHtml(homeLabel)}</strong>${names}</span></li>`;
-            }
-            const leg = row.leg ? `<span class="tour-stop-leg">${this.formatTourMiles(row.leg.distance)} · ${this.formatTourDuration(row.leg.duration)} drive</span>` : '';
-            return `<li><span class="tour-stop-index">${row.number}</span><span class="tour-stop-detail"><strong>${this.escapeHtml(this.tourStopLabel(row.stop))}</strong><span class="tour-stop-venues">${this.formatTourVenueNames(row.stop.venues)}</span>${leg}</span></li>`;
-        }).join('');
+    showTourStatus(collected, trip, stopCount) {
         const notes = [];
-        if (omittedCount > 0) {
-            notes.push(`Routed the 50 booked cities closest to the start. ${omittedCount} ${omittedCount === 1 ? 'city was' : 'cities were'} left out.`);
+        if (collected.omittedCount > 0) {
+            notes.push(`Routed the 50 booked cities closest to the start. ${collected.omittedCount} ${collected.omittedCount === 1 ? 'city was' : 'cities were'} left out.`);
         }
-        if (skippedCount > 0) {
-            notes.push(`${skippedCount} booked ${skippedCount === 1 ? 'venue had' : 'venues had'} no matching city and ${skippedCount === 1 ? 'was' : 'were'} left off the route.`);
+        if (collected.skippedCount > 0) {
+            notes.push(`${collected.skippedCount} booked ${collected.skippedCount === 1 ? 'venue had' : 'venues had'} no matching city and ${collected.skippedCount === 1 ? 'was' : 'were'} left off the route.`);
         }
+        const stats = `${stopCount} stop${stopCount === 1 ? '' : 's'} · ${this.formatTourMiles(trip.distance)} · ${this.formatTourDuration(trip.duration)} from ${this.escapeHtml(collected.homeLabel)}`;
         const noteHtml = notes.map(note => `<p class="tour-route-note">${this.escapeHtml(note)}</p>`).join('');
-        return `<div class="tour-route-stats">${stats}</div><ol class="tour-route-stops">${items}</ol>${noteHtml}`;
+        this.showTourSummary(`<p class="tour-route-stats">${stats}</p>${noteHtml}`);
     }
 
     drawBookedTour(collected, trip, waypoints) {
@@ -1193,7 +1178,22 @@ class SimpleCRM {
         sequence.forEach((item, index) => {
             const leg = index > 0 ? (trip.legs || [])[index - 1] : null;
             if (item.inputIndex === 0) {
-                rows.push({ kind: 'start', venues: collected.homeVenues, leg });
+                if (collected.homeVenues.length) {
+                    stopNumber += 1;
+                    rows.push({
+                        kind: 'stop',
+                        number: stopNumber,
+                        leg: null,
+                        stop: {
+                            coords: collected.home,
+                            label: collected.homeLabel,
+                            extraLabels: [],
+                            venues: collected.homeVenues
+                        }
+                    });
+                } else {
+                    rows.push({ kind: 'start', venues: [], leg: null });
+                }
                 return;
             }
             const stop = collected.stops[item.inputIndex - 1];
@@ -1235,16 +1235,22 @@ class SimpleCRM {
                     popupAnchor: [0, -14]
                 })
             });
-            const names = row.stop.venues
-                .map(venue => this.escapeHtml(venue.Venue || 'Unknown venue'))
-                .join('<br>');
-            marker.bindPopup(`<strong>${row.number}. ${this.escapeHtml(this.tourStopLabel(row.stop))}</strong><br>${names}`);
+            const driveLabel = row.leg
+                ? `${this.formatTourMiles(row.leg.distance)} · ${this.formatTourDuration(row.leg.duration)} drive`
+                : '';
+            this.bindLocationPopup(marker, {
+                city: this.tourStopLabel(row.stop),
+                state: '',
+                venues: row.stop.venues,
+                color: '#e11d48',
+                driveLabel
+            });
             this.tourLayer.addLayer(marker);
         });
 
         const clearBtn = document.getElementById('clearRouteBtn');
         if (clearBtn) clearBtn.hidden = false;
-        this.showTourSummary(this.buildTourSummaryHtml(collected, trip, rows));
+        this.showTourStatus(collected, trip, stopCount);
 
         const bounds = this.tourLayer.getBounds();
         if (bounds.isValid()) {

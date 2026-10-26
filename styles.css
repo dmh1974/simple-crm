@@ -431,8 +431,6 @@ header p {
     border: 1px solid #4a5568;
     border-radius: 8px;
     color: #e1e8ed;
-    max-height: 220px;
-    overflow: auto;
 }
 
 .tour-route-summary[hidden] {
@@ -441,7 +439,7 @@ header p {
 
 .tour-route-stats {
     font-weight: 600;
-    margin-bottom: 8px;
+    margin: 0;
 }
 
 .tour-route-message {
@@ -458,57 +456,11 @@ header p {
     font-size: 13px;
 }
 
-.tour-route-stops {
-    list-style: none;
-    margin: 0;
+.leaflet-marker-icon.tour-stop-marker {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
     padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.tour-route-stops li {
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-    font-size: 14px;
-}
-
-.tour-stop-index {
-    flex: 0 0 22px;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: #e11d48;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.tour-stop-index-start {
-    background: #4a5568;
-}
-
-.tour-stop-detail {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
-.tour-stop-venues,
-.tour-stop-leg {
-    color: #a0aec0;
-    font-size: 13px;
-}
-
-.tour-stop-marker {
-    display: flex;
-    align-items: center;
-    justify-content: center;
     background: #e11d48;
     color: #fff;
     border: 2px solid #fff;
@@ -516,6 +468,7 @@ header p {
     font-weight: 700;
     font-size: 12px;
     line-height: 1;
+    text-align: center;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 
